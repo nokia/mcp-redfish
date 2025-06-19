@@ -1,0 +1,14 @@
+{
+  "servers": {
+    // https://github.com/ppl-ai/modelcontextprotocol/
+    "Redfish": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp",
+      "command": "python3",
+      "args": ["src/main.py"],
+      "env": {
+        "PYTHONPATH": "./src",
+      }
+    }
+  }
+}

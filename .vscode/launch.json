@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run main.py via uv",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "src.main",
+      "envFile": "${workspaceFolder}/.env",
+      "justMyCode": false,
+      "args": [],
+      "env": {
+        "PYTHONPATH": "src:examples",
+        "REDFISH_USERNAME": "",
+        "REDFISH_PASSWORD": "",
+        "OPENAI_API_KEY": "",
+        "MCP_TRANSPORT": "streamable-http"
+      }
+    }
+  ]
+}

@@ -13,6 +13,7 @@ MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
 
 REDFISH_CFG = {"hosts": os.getenv('REDFISH_HOSTS', '[{"address": "127.0.0.1"}]'),
              "port": int(os.getenv('REDFISH_PORT', 443)),
+             "auth_method": os.getenv('REDFISH_AUTH_METHOD', 'session'),
              "username": os.getenv('REDFISH_USERNAME', ""),
              "password": os.getenv('REDFISH_PASSWORD',''),
              "tls_server_ca_cert": os.getenv('REDFISH_SERVER_CA_CERT', None)}

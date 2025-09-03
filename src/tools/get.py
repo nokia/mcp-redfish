@@ -7,6 +7,7 @@ import common.config
 from common.server import mcp
 import redfish
 from fastmcp.exceptions import ValidationError, ToolError
+from redfish.rest.v1 import AuthMethod
 
 @mcp.tool()
 async def get_endpoint_data(url: str) -> dict:
@@ -39,7 +40,11 @@ async def get_endpoint_data(url: str) -> dict:
         raise ValidationError(f"Server {server_address} not found in config")
 
     # Get connection parameters
+
     try:
+        auth_method = server_cfg.get("auth_method") or common.config.REDFISH_CFG.get("auth_method")
+        if auth_method not in (AuthMethod.BASIC, AuthMethod.SESSION):
+            raise ValidationError(f"Invalid auth_method: {auth_method}. Allowed values: {AuthMethod.BASIC}, {AuthMethod.SESSION}")
         username = server_cfg.get("username") or common.config.REDFISH_CFG.get("username")
         password = server_cfg.get("password") or common.config.REDFISH_CFG.get("password")
         port = server_cfg.get("port") or common.config.REDFISH_CFG.get("port", 443)
@@ -58,7 +63,7 @@ async def get_endpoint_data(url: str) -> dict:
         if ca_cert:
             client.cafile = ca_cert
         try:
-            client.login()
+            client.login(auth=auth_method)
         except Exception as e:
             raise ToolError(f"Redfish login failed: {e}")
         try:

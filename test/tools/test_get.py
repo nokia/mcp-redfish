@@ -41,22 +41,17 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
                     await client.call_tool("get_endpoint_data", {"url": url})
 
     @patch('common.config.get_hosts')
-    async def test_successful_fetch(self, mock_get_hosts):
+    @patch('tools.get.RedfishClient')
+    async def test_successful_fetch(self, mock_redfish_client, mock_get_hosts):
         mock_get_hosts.return_value = [{'address': 'host1', 'username': 'u', 'password': 'p'}]
         url = 'https://host1/redfish/v1/Systems/1'
-        mock_response = MagicMock()
-        mock_response.status = 200
-        mock_response.dict = {'data': 'ok'}
-        mock_client = MagicMock()
-        mock_client.login.return_value = None
-        mock_client.cafile = None
-        mock_client.get.return_value = mock_response
-        with patch('tools.get.redfish.redfish_client', return_value=mock_client):
-            with patch.object(mock_client, 'get_resource', return_value={'data': 'ok'}):
-                async with Client(common.server.mcp) as client:
-                    result = await client.call_tool("get_endpoint_data", {"url": url})
-                    self.assertEqual(len(result), 1)
-                    self.assertEqual(json.loads(result[0].text), {'data': 'ok'})
+        mock_instance = MagicMock()
+        mock_instance.get.return_value = {'data': 'ok'}
+        mock_redfish_client.return_value = mock_instance
+        async with Client(common.server.mcp) as client:
+            result = await client.call_tool("get_endpoint_data", {"url": url})
+            self.assertEqual(len(result), 1)
+            self.assertEqual(json.loads(result[0].text), {'data': 'ok'})
 
 if __name__ == '__main__':
     unittest.main()

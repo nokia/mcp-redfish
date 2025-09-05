@@ -38,9 +38,7 @@ class RedfishClient:
             response = self.client.get(resource_path)
         except Exception as e:
             raise ToolError(f"Redfish GET request failed: {e}")
-        if response.status not in (200, 201):
-            raise ToolError(f"Redfish GET failed: HTTP {response.status}", getattr(response, 'dict', None))
-        return response.dict
+        return response
 
     def logout(self):
         if self.client:

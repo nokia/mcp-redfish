@@ -1,29 +1,41 @@
+
 # Copyright 2025 Nokia
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-import urllib
-from dotenv import load_dotenv
+"""
+Configuration loader for MCP Redfish client.
+Loads settings from environment variables, with sensible defaults.
+"""
+
 import os
 import json
+import logging
+from dotenv import load_dotenv
+
+# Configure logging to stderr
+LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
 
 load_dotenv()
 
 MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
 
-REDFISH_CFG = {"hosts": os.getenv('REDFISH_HOSTS', '[{"address": "127.0.0.1"}]'),
-             "port": int(os.getenv('REDFISH_PORT', 443)),
-             "auth_method": os.getenv('REDFISH_AUTH_METHOD', 'session'),
-             "username": os.getenv('REDFISH_USERNAME', ""),
-             "password": os.getenv('REDFISH_PASSWORD',''),
-             "tls_server_ca_cert": os.getenv('REDFISH_SERVER_CA_CERT', None)}
+# Parse hosts as JSON, handle errors gracefully
+hosts_env = os.getenv('REDFISH_HOSTS', '[{"address": "127.0.0.1"}]')
+try:
+    hosts = json.loads(hosts_env)
+    if not isinstance(hosts, list):
+        raise ValueError("REDFISH_HOSTS must be a JSON list")
+except Exception as e:
+    logging.error(f"Failed to parse REDFISH_HOSTS: {e}")
+    hosts = [{"address": "127.0.0.1"}]
 
-def get_hosts():
-    """Get the list of hosts from the REDFISH_CFG."""
-    hosts = REDFISH_CFG.get("hosts", [])
-    if isinstance(hosts, str):
-        try:
-            hosts = json.loads(hosts)
-        except json.JSONDecodeError:
-            hosts = []
-    return hosts
+REDFISH_CFG = {
+    "hosts": hosts,
+    "port": int(os.getenv('REDFISH_PORT', 443)),
+    "auth_method": os.getenv('REDFISH_AUTH_METHOD', 'session'),
+    "username": os.getenv('REDFISH_USERNAME', ""),
+    "password": os.getenv('REDFISH_PASSWORD', ''),
+    "tls_server_ca_cert": os.getenv('REDFISH_SERVER_CA_CERT', None)
+}

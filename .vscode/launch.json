@@ -11,6 +11,8 @@
       "args": [],
       "env": {
         "PYTHONPATH": "src:examples",
+        "REDFISH_HOSTS": "[{\"address\": \"127.0.0.1\", \"port\": 5000}]",
+        "REDFISH_AUTH_METHOD": "basic",
         "REDFISH_USERNAME": "",
         "REDFISH_PASSWORD": "",
         "OPENAI_API_KEY": "",

@@ -12,8 +12,7 @@ import logging
 import common.hosts
 from common.server import mcp
 
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 @mcp.tool()
 async def list_servers() -> list:
@@ -23,14 +22,14 @@ async def list_servers() -> list:
     Returns:
         list: A list of Redfish Servers that can be accessed
     """
-    logging.info("Listing accessible Redfish servers.")
+    logger.info("Listing accessible Redfish servers.")
     try:
         servers = common.hosts.get_hosts()
     except Exception as e:
-        logging.error(f"Failed to get Redfish servers: {e}")
+        logger.error(f"Failed to get Redfish servers: {e}")
         return []
     if not servers:
-        logging.warning("No Redfish servers found.")
+        logger.warning("No Redfish servers found.")
         return []
     return [srv['address'] for srv in servers if 'address' in srv]
 

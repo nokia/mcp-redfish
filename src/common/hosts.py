@@ -6,10 +6,9 @@
 import os
 import threading
 import json
-import logging
 
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+import logging
+logger = logging.getLogger(__name__)
 
 _hosts_lock = threading.Lock()
 _static_hosts = None
@@ -26,7 +25,7 @@ def _load_static_hosts() -> None:
     try:
         _static_hosts = json.loads(hosts_env)
     except Exception as e:
-        logging.error(f"Failed to parse REDFISH_HOSTS: {e}")
+        logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
         _static_hosts = []
 
 _load_static_hosts()

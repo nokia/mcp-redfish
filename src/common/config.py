@@ -1,4 +1,3 @@
-
 # Copyright 2025 Nokia
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,9 +12,7 @@ import json
 import logging
 from dotenv import load_dotenv
 
-# Configure logging to stderr
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -28,7 +25,7 @@ try:
     if not isinstance(hosts, list):
         raise ValueError("REDFISH_HOSTS must be a JSON list")
 except Exception as e:
-    logging.error(f"Failed to parse REDFISH_HOSTS: {e}")
+    logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
     hosts = [{"address": "127.0.0.1"}]
 
 REDFISH_CFG = {

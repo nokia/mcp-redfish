@@ -1,4 +1,3 @@
-
 # Copyright 2025 Nokia
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
@@ -12,9 +11,7 @@ import os
 import logging
 from fastmcp import FastMCP
 
-# Configure logging to stderr
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server with error handling
 try:
@@ -22,7 +19,7 @@ try:
         "Redfish MCP Server",
         dependencies=["redfish", "dotenv", "urllib"]
     )
-    logging.info("MCP server initialized successfully.")
+    logger.info("MCP server initialized successfully.")
 except Exception as e:
-    logging.error(f"Failed to initialize MCP server: {e}")
+    logger.error(f"Failed to initialize MCP server: {e}")
 

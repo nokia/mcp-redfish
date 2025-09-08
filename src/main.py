@@ -25,7 +25,8 @@ class RedfishMCPServer:
     Main Redfish MCP server class. Handles SSDP discovery and MCP server startup.
     """
     def __init__(self):
-        logging.info("Starting the RedfishMCPServer")
+        self.logger = logging.getLogger(__name__)
+        self.logger.info("Starting the RedfishMCPServer")
         self.discovery_enabled = os.environ.get("REDFISH_DISCOVERY_ENABLED", "false").lower() == "true"
         self.discovery_interval = int(os.environ.get("REDFISH_DISCOVERY_INTERVAL", "30"))
         self.discovery_thread = None
@@ -41,9 +42,9 @@ class RedfishMCPServer:
             try:
                 discovery = SSDPDiscovery()
                 hosts = discovery.discover()
-                logging.info(f"[SSDP Discovery] Found hosts: {hosts}")
+                self.logger.info(f"[SSDP Discovery] Found hosts: {hosts}")
             except Exception as e:
-                logging.error(f"[SSDP Discovery] Error: {e}")
+                self.logger.error(f"[SSDP Discovery] Error: {e}")
             time.sleep(self.discovery_interval)
 
     def run(self):
@@ -53,12 +54,15 @@ class RedfishMCPServer:
         try:
             mcp.run(transport=MCP_TRANSPORT)
         except Exception as e:
-            logging.error(f"Error running mcp: {e}")
+            self.logger.error(f"Error running mcp: {e}")
 
 def main():
     """
     Main entry point for the Redfish MCP server.
     """
+    # Configure logging to stderr
+    log_level = os.getenv('MCP_REDFISH_LOG_LEVEL', 'INFO').upper()
+    logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
     server = RedfishMCPServer()
     server.run()
 

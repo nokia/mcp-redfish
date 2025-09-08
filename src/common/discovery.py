@@ -12,9 +12,7 @@ import os
 
 from common.hosts import update_discovered_hosts
 
-# Make logging level configurable via environment variable
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 SSDP_ADDR = '239.255.255.250'
 SSDP_PORT = 1900
@@ -46,7 +44,7 @@ class SSDPDiscovery:
             f'MX: {SSDP_MX}\r\n'
             f'ST: {SSDP_ST}\r\n\r\n'
         )
-        logging.info("Starting SSDP discovery...")
+        logger.info("Starting SSDP discovery...")
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
                 sock.settimeout(self.timeout)
@@ -59,22 +57,22 @@ class SSDPDiscovery:
                         al_uri = self._parse_al(response)
                         if al_uri and self._is_valid_service_root(al_uri):
                             self.found_hosts.append({'address': addr[0], 'service_root': al_uri})
-                            logging.info(f"Discovered Redfish endpoint: {addr[0]} {al_uri}")
+                            logger.info(f"Discovered Redfish endpoint: {addr[0]} {al_uri}")
                         else:
-                            logging.debug(f"Received SSDP response from {addr[0]} but no valid AL header found.")
+                            logger.debug(f"Received SSDP response from {addr[0]} but no valid AL header found.")
                     except socket.timeout:
-                        logging.info("SSDP discovery timed out.")
+                        logger.info("SSDP discovery timed out.")
                         break
                     except Exception as e:
-                        logging.error(f"Error receiving SSDP response: {e}")
+                        logger.error(f"Error receiving SSDP response: {e}")
                         continue
         except Exception as e:
-            logging.error(f"Error during SSDP discovery: {e}")
+            logger.error(f"Error during SSDP discovery: {e}")
         # Update shared hosts list
         try:
             update_discovered_hosts(self.found_hosts)
         except ImportError:
-            logging.warning("update_discovered_hosts not available.")
+            logger.warning("update_discovered_hosts not available.")
         return self.found_hosts
 
     def _is_valid_service_root(self, uri: str) -> bool:
@@ -87,14 +85,14 @@ class SSDPDiscovery:
         """
         parsed = urllib.parse.urlparse(uri)
         if parsed.scheme != "https":
-            logging.debug(f"Service root URI rejected (not https): {uri}")
+            logger.debug(f"Service root URI rejected (not https): {uri}")
             return False
         if not parsed.netloc:
-            logging.debug(f"Service root URI rejected (missing netloc): {uri}")
+            logger.debug(f"Service root URI rejected (missing netloc): {uri}")
             return False
         # Must end with /redfish/v1/ (allow optional trailing slash)
         if not re.match(r"^/redfish/v1/?$", parsed.path):
-            logging.debug(f"Service root URI rejected (invalid path): {uri}")
+            logger.debug(f"Service root URI rejected (invalid path): {uri}")
             return False
         return True
 

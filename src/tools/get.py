@@ -19,9 +19,7 @@ import common.config
 import common.hosts
 from common.server import mcp
 
-
-LOG_LEVEL = os.getenv('MCP_LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+logger = logging.getLogger(__name__)
 
 @mcp.tool()
 async def get_resource_data(url: str) -> dict:
@@ -35,13 +33,13 @@ async def get_resource_data(url: str) -> dict:
     Returns:
         data: The data of the resource in JSON format or an error message if the URL is invalid.
     """
-    logging.info(f"Fetching Redfish resource data for URL: {url}")
+    logger.info(f"Fetching Redfish resource data for URL: {url}")
 
     parsed = urllib.parse.urlparse(url)
     server_address = parsed.hostname
     resource_path = parsed.path
     if not server_address or not resource_path:
-        logging.error(f"Invalid URL: missing server address or resource path: {url}")
+        logger.error(f"Invalid URL: missing server address or resource path: {url}")
         raise ValidationError(f"Invalid URL: missing server address or resource path: {url}")
 
 
@@ -49,7 +47,7 @@ async def get_resource_data(url: str) -> dict:
     try:
         servers = common.hosts.get_hosts()
     except Exception as e:
-        logging.error(f"Failed to load Redfish servers: {e}")
+        logger.error(f"Failed to load Redfish servers: {e}")
         raise ToolError(f"Failed to load Redfish servers: {e}")
     server_cfg = None
     for srv in servers:
@@ -57,7 +55,7 @@ async def get_resource_data(url: str) -> dict:
             server_cfg = srv
             break
     if not server_cfg:
-        logging.error(f"Server {server_address} not found in config")
+        logger.error(f"Server {server_address} not found in config")
         raise ValidationError(f"Server {server_address} not found in config")
 
     client = None

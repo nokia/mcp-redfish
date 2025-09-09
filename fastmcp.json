@@ -1,0 +1,9 @@
+{
+  "name": "Redfish MCP Server",
+  "version": "0.1.0",
+  "description": "MCP Server for Redfish API Integration",
+  "entrypoint": "src/main.py",
+  "environment": {
+    "dependencies": ["redfish", "dotenv", "urllib"]
+  }
+}

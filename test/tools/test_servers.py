@@ -9,31 +9,45 @@ import os
 import json
 
 # Patch sys.path to import from src
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src')))
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
+)
 
 from fastmcp import Client
 import tools.servers as servers
 import common.server
 
+
 class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
-    @patch('common.hosts.get_hosts')
+    @patch("common.hosts.get_hosts")
     async def test_list_endpoints_empty(self, mock_get_hosts):
         mock_get_hosts.return_value = []
         async with Client(common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
-            self.assertEqual(len(result), 0)
+            # Handle both direct result and CallToolResult
+            if hasattr(result, "content"):
+                data = json.loads(result.content[0].text) if result.content else []
+            else:
+                data = result
+            self.assertEqual(len(data), 0)
 
-    @patch('common.hosts.get_hosts')
+    @patch("common.hosts.get_hosts")
     async def test_list_endpoints_with_addresses(self, mock_get_hosts):
         mock_get_hosts.return_value = [
-            {'address': 'host1'},
-            {'address': 'host2'},
-            {'noaddress': 'host3'}
+            {"address": "host1"},
+            {"address": "host2"},
+            {"noaddress": "host3"},
         ]
         async with Client(common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
-            self.assertEqual(len(result), 1)
-            self.assertEqual(json.loads(result[0].text), ['host1', 'host2'])
+            # Handle both direct result and CallToolResult
+            if hasattr(result, "content"):
+                data = json.loads(result.content[0].text) if result.content else []
+            else:
+                data = result
+            self.assertEqual(len(data), 2)
+            self.assertEqual(data, ["host1", "host2"])
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

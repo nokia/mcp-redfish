@@ -6,6 +6,7 @@ import redfish
 from redfish.rest.v1 import AuthMethod
 from fastmcp.exceptions import ToolError, ValidationError
 
+
 class RedfishClient:
     def __init__(self, server_cfg, common_cfg):
         self.server_cfg = server_cfg
@@ -14,18 +15,35 @@ class RedfishClient:
         self._setup_client()
 
     def _setup_client(self):
-        auth_method = self.server_cfg.get("auth_method") or self.common_cfg.REDFISH_CFG.get("auth_method")
+        auth_method = self.server_cfg.get(
+            "auth_method"
+        ) or self.common_cfg.REDFISH_CFG.get("auth_method")
         if auth_method not in (AuthMethod.BASIC, AuthMethod.SESSION):
-            raise ValidationError(f"Invalid auth_method: {auth_method}. Allowed values: {AuthMethod.BASIC}, {AuthMethod.SESSION}")
-        username = self.server_cfg.get("username") or self.common_cfg.REDFISH_CFG.get("username")
-        password = self.server_cfg.get("password") or self.common_cfg.REDFISH_CFG.get("password")
-        port = self.server_cfg.get("port") or self.common_cfg.REDFISH_CFG.get("port", 443)
+            raise ValidationError(
+                f"Invalid auth_method: {auth_method}. Allowed values: {AuthMethod.BASIC}, {AuthMethod.SESSION}"
+            )
+        username = self.server_cfg.get("username") or self.common_cfg.REDFISH_CFG.get(
+            "username"
+        )
+        password = self.server_cfg.get("password") or self.common_cfg.REDFISH_CFG.get(
+            "password"
+        )
+        port = self.server_cfg.get("port") or self.common_cfg.REDFISH_CFG.get(
+            "port", 443
+        )
         base_url = f"https://{self.server_cfg.get('address')}:{port}"
         try:
-            self.client = redfish.redfish_client(base_url=base_url, username=username, password=password, default_prefix="/redfish/v1")
+            self.client = redfish.redfish_client(
+                base_url=base_url,
+                username=username,
+                password=password,
+                default_prefix="/redfish/v1",
+            )
         except Exception as e:
             raise ToolError(f"Failed to create Redfish client: {e}")
-        ca_cert = self.server_cfg.get("tls_server_ca_cert") or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
+        ca_cert = self.server_cfg.get(
+            "tls_server_ca_cert"
+        ) or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
         if ca_cert:
             self.client.cafile = ca_cert
         try:

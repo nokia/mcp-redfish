@@ -1,4 +1,3 @@
-
 # Copyright 2025 Nokia
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
@@ -21,6 +20,7 @@ from common.server import mcp
 
 logger = logging.getLogger(__name__)
 
+
 @mcp.tool()
 async def get_resource_data(url: str) -> dict:
     """
@@ -40,8 +40,9 @@ async def get_resource_data(url: str) -> dict:
     resource_path = parsed.path
     if not server_address or not resource_path:
         logger.error(f"Invalid URL: missing server address or resource path: {url}")
-        raise ValidationError(f"Invalid URL: missing server address or resource path: {url}")
-
+        raise ValidationError(
+            f"Invalid URL: missing server address or resource path: {url}"
+        )
 
     # Find server config
     try:
@@ -62,7 +63,7 @@ async def get_resource_data(url: str) -> dict:
     try:
         client = RedfishClient(server_cfg, common.config)
         response = client.get(resource_path)
-        return response.dict  
+        return response.dict
     finally:
         if client:
             client.logout()

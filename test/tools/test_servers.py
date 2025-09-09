@@ -2,11 +2,11 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
+import json
+import os
+import sys
 import unittest
 from unittest.mock import patch
-import sys
-import os
-import json
 
 # Patch sys.path to import from src
 sys.path.insert(
@@ -14,7 +14,7 @@ sys.path.insert(
 )
 
 from fastmcp import Client
-import tools.servers as servers
+
 import common.server
 
 

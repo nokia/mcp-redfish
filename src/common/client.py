@@ -3,8 +3,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import redfish
-from redfish.rest.v1 import AuthMethod
 from fastmcp.exceptions import ToolError, ValidationError
+from redfish.rest.v1 import AuthMethod
 
 
 class RedfishClient:
@@ -40,7 +40,7 @@ class RedfishClient:
                 default_prefix="/redfish/v1",
             )
         except Exception as e:
-            raise ToolError(f"Failed to create Redfish client: {e}")
+            raise ToolError(f"Failed to create Redfish client: {e}") from e
         ca_cert = self.server_cfg.get(
             "tls_server_ca_cert"
         ) or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
@@ -49,13 +49,13 @@ class RedfishClient:
         try:
             self.client.login(auth=auth_method)
         except Exception as e:
-            raise ToolError(f"Redfish login failed: {e}")
+            raise ToolError(f"Redfish login failed: {e}") from e
 
     def get(self, resource_path):
         try:
             response = self.client.get(resource_path)
         except Exception as e:
-            raise ToolError(f"Redfish GET request failed: {e}")
+            raise ToolError(f"Redfish GET request failed: {e}") from e
         return response
 
     def logout(self):

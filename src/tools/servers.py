@@ -6,8 +6,8 @@
 Tool for listing accessible Redfish servers via MCP integration.
 """
 
-import os
 import logging
+
 import common.hosts
 from common.server import mcp
 

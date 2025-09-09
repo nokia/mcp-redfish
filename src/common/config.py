@@ -4,35 +4,91 @@
 
 """
 Configuration loader for MCP Redfish client.
-Loads settings from environment variables, with sensible defaults.
+Loads settings from environment variables with validation.
 """
 
-import os
 import json
 import logging
+import os
+import warnings
+
 from dotenv import load_dotenv
+
+from .validation import ConfigurationError, load_validated_config
 
 logger = logging.getLogger(__name__)
 
+# Load environment variables
 load_dotenv()
 
-MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
-
-# Parse hosts as JSON, handle errors gracefully
-hosts_env = os.getenv("REDFISH_HOSTS", '[{"address": "127.0.0.1"}]')
+# Load and validate configuration
 try:
-    hosts = json.loads(hosts_env)
-    if not isinstance(hosts, list):
-        raise ValueError("REDFISH_HOSTS must be a JSON list")
-except Exception as e:
-    logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
-    hosts = [{"address": "127.0.0.1"}]
+    REDFISH_CONFIG, MCP_CONFIG = load_validated_config()
 
-REDFISH_CFG = {
-    "hosts": hosts,
-    "port": int(os.getenv("REDFISH_PORT", 443)),
-    "auth_method": os.getenv("REDFISH_AUTH_METHOD", "session"),
-    "username": os.getenv("REDFISH_USERNAME", ""),
-    "password": os.getenv("REDFISH_PASSWORD", ""),
-    "tls_server_ca_cert": os.getenv("REDFISH_SERVER_CA_CERT", None),
-}
+    # Legacy compatibility - maintain the old REDFISH_CFG format
+    REDFISH_CFG = {
+        "hosts": [
+            {
+                "address": host.address,
+                "port": host.port,
+                "username": host.username,
+                "password": host.password,
+                "auth_method": host.auth_method,
+                "tls_server_ca_cert": host.tls_server_ca_cert,
+            }
+            for host in REDFISH_CONFIG.hosts
+        ],
+        "port": REDFISH_CONFIG.port,
+        "auth_method": REDFISH_CONFIG.auth_method,
+        "username": REDFISH_CONFIG.username,
+        "password": REDFISH_CONFIG.password,
+        "tls_server_ca_cert": REDFISH_CONFIG.tls_server_ca_cert,
+    }
+
+    # Legacy compatibility - maintain the old MCP_TRANSPORT variable
+    MCP_TRANSPORT = MCP_CONFIG.transport
+
+    logger.info("Configuration validated and loaded successfully")
+
+except ConfigurationError as e:
+    logger.error(f"Configuration validation failed: {e}")
+
+    # Issue deprecation warning
+    warnings.warn(
+        "Falling back to legacy configuration parsing. This behavior is deprecated and will be removed in a future version. "
+        "Please ensure your environment variables are properly formatted and all required values are provided. "
+        "See the documentation for the expected configuration format.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    logger.warning(
+        "DEPRECATION WARNING: Using legacy configuration parsing. Please update your configuration to use the new validated format."
+    )
+
+    logger.info("Falling back to legacy configuration loading...")
+
+    # Fallback to legacy behavior for backward compatibility
+    MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
+
+    # Parse hosts as JSON, handle errors gracefully
+    hosts_env = os.getenv("REDFISH_HOSTS", '[{"address": "127.0.0.1"}]')
+    try:
+        hosts = json.loads(hosts_env)
+        if not isinstance(hosts, list):
+            raise ValueError("REDFISH_HOSTS must be a JSON list")
+    except Exception as e:
+        logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
+        hosts = [{"address": "127.0.0.1"}]
+
+    REDFISH_CFG = {
+        "hosts": hosts,
+        "port": int(os.getenv("REDFISH_PORT", 443)),
+        "auth_method": os.getenv("REDFISH_AUTH_METHOD", "session"),
+        "username": os.getenv("REDFISH_USERNAME", ""),
+        "password": os.getenv("REDFISH_PASSWORD", ""),
+        "tls_server_ca_cert": os.getenv("REDFISH_SERVER_CA_CERT", None),
+    }
+
+    # Create dummy config objects for compatibility
+    REDFISH_CONFIG = None
+    MCP_CONFIG = None

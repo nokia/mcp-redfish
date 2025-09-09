@@ -1,26 +1,148 @@
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]
+
 [project]
 name = "mcp-redfish"
 version = "0.1.0"
-description = "MCP Server for Redfish API Integration"
-authors = [{name = "Nokia"}]
+description = "MCP Server for Redfish API Integration - A natural language interface for managing Redfish-enabled infrastructure"
+authors = [{name = "Nokia", email = "opensource@nokia.com"}]
+maintainers = [{name = "Nokia", email = "opensource@nokia.com"}]
 readme = "README.md"
+license = {file = "LICENSE"}
 requires-python = ">=3.13"
+keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
     "redfish",
     "python-dotenv",
     "fastmcp"
 ]
 
+[project.urls]
+Homepage = "https://github.com/nokia/mcp-redfish"
+Repository = "https://github.com/nokia/mcp-redfish"
+Documentation = "https://github.com/nokia/mcp-redfish#readme"
+"Bug Tracker" = "https://github.com/nokia/mcp-redfish/issues"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
     "black>=23.0.0",
-    "mypy>=1.0.0"
+    "mypy>=1.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.0.0",
 ]
+test = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+]
+
+[project.scripts]
+mcp-redfish = "src.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["test"]
 python_files = "test_*.py"
-addopts = "-v"
+python_classes = "Test*"
+python_functions = "test_*"
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests",
+    "integration: Integration tests",
+    "slow: Slow running tests",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.13"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.format]
+# Use Black-compatible settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "E203",  # whitespace before ':', handled by black
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.ruff.lint.per-file-ignores]
+"test/**/*.py" = ["B011", "B018"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "test/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]

@@ -62,7 +62,7 @@ def main():
     """
     # Configure logging to stderr
     log_level = os.getenv('MCP_REDFISH_LOG_LEVEL', 'INFO').upper()
-    logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
+    logging.basicConfig(level=getattr(logging, log_level, logging.INFO), format='%(asctime)s %(levelname)s %(message)s')
     server = RedfishMCPServer()
     server.run()
 

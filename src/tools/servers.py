@@ -1,4 +1,3 @@
-
 # Copyright 2025 Nokia
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
@@ -13,6 +12,7 @@ import common.hosts
 from common.server import mcp
 
 logger = logging.getLogger(__name__)
+
 
 @mcp.tool()
 async def list_servers() -> list:
@@ -31,5 +31,4 @@ async def list_servers() -> list:
     if not servers:
         logger.warning("No Redfish servers found.")
         return []
-    return [srv['address'] for srv in servers if 'address' in srv]
-
+    return [srv["address"] for srv in servers if "address" in srv]

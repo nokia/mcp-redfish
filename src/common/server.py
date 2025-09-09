@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 # Initialize FastMCP server with error handling
 try:
-    mcp = FastMCP(
-        "Redfish MCP Server",
-        dependencies=["redfish", "dotenv", "urllib"]
-    )
+    mcp = FastMCP("Redfish MCP Server")
     logger.info("MCP server initialized successfully.")
 except Exception as e:
     logger.error(f"Failed to initialize MCP server: {e}")
-

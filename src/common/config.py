@@ -16,10 +16,10 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-MCP_TRANSPORT = os.getenv('MCP_TRANSPORT', 'stdio')
+MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
 
 # Parse hosts as JSON, handle errors gracefully
-hosts_env = os.getenv('REDFISH_HOSTS', '[{"address": "127.0.0.1"}]')
+hosts_env = os.getenv("REDFISH_HOSTS", '[{"address": "127.0.0.1"}]')
 try:
     hosts = json.loads(hosts_env)
     if not isinstance(hosts, list):
@@ -30,9 +30,9 @@ except Exception as e:
 
 REDFISH_CFG = {
     "hosts": hosts,
-    "port": int(os.getenv('REDFISH_PORT', 443)),
-    "auth_method": os.getenv('REDFISH_AUTH_METHOD', 'session'),
-    "username": os.getenv('REDFISH_USERNAME', ""),
-    "password": os.getenv('REDFISH_PASSWORD', ''),
-    "tls_server_ca_cert": os.getenv('REDFISH_SERVER_CA_CERT', None)
+    "port": int(os.getenv("REDFISH_PORT", 443)),
+    "auth_method": os.getenv("REDFISH_AUTH_METHOD", "session"),
+    "username": os.getenv("REDFISH_USERNAME", ""),
+    "password": os.getenv("REDFISH_PASSWORD", ""),
+    "tls_server_ca_cert": os.getenv("REDFISH_SERVER_CA_CERT", None),
 }

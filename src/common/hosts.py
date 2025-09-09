@@ -8,12 +8,12 @@ import threading
 import json
 
 import logging
+
 logger = logging.getLogger(__name__)
 
 _hosts_lock = threading.Lock()
 _static_hosts = None
 _discovered_hosts = []
-
 
 
 def _load_static_hosts() -> None:
@@ -28,8 +28,8 @@ def _load_static_hosts() -> None:
         logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
         _static_hosts = []
 
-_load_static_hosts()
 
+_load_static_hosts()
 
 
 def update_discovered_hosts(new_hosts: list[dict]) -> None:
@@ -43,7 +43,6 @@ def update_discovered_hosts(new_hosts: list[dict]) -> None:
         _discovered_hosts = new_hosts
 
 
-
 def get_hosts() -> list[dict]:
     """
     Get the merged list of static and discovered hosts, avoiding duplicates by address.
@@ -52,8 +51,8 @@ def get_hosts() -> list[dict]:
     """
     with _hosts_lock:
         # Static hosts take precedence over discovered hosts
-        all_hosts = {h['address']: h for h in (_static_hosts or [])}
+        all_hosts = {h["address"]: h for h in (_static_hosts or [])}
         for h in _discovered_hosts:
-            if h['address'] not in all_hosts:
-                all_hosts[h['address']] = h
+            if h["address"] not in all_hosts:
+                all_hosts[h["address"]] = h
         return list(all_hosts.values())

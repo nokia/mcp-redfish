@@ -14,15 +14,17 @@ from common.hosts import update_discovered_hosts
 
 logger = logging.getLogger(__name__)
 
-SSDP_ADDR = '239.255.255.250'
+SSDP_ADDR = "239.255.255.250"
 SSDP_PORT = 1900
 SSDP_MX = 2
-SSDP_ST = 'urn:dmtf-org:service:redfish-rest:1'
+SSDP_ST = "urn:dmtf-org:service:redfish-rest:1"
+
 
 class SSDPDiscovery:
     """
     SSDPDiscovery discovers Redfish endpoints using SSDP M-SEARCH.
     """
+
     def __init__(self, timeout: int = 5):
         """
         Args:
@@ -38,28 +40,36 @@ class SSDPDiscovery:
             list[dict]: List of discovered hosts with address and service_root.
         """
         message = (
-            'M-SEARCH * HTTP/1.1\r\n'
-            f'HOST: {SSDP_ADDR}:{SSDP_PORT}\r\n'
+            "M-SEARCH * HTTP/1.1\r\n"
+            f"HOST: {SSDP_ADDR}:{SSDP_PORT}\r\n"
             'MAN: "ssdp:discover"\r\n'
-            f'MX: {SSDP_MX}\r\n'
-            f'ST: {SSDP_ST}\r\n\r\n'
+            f"MX: {SSDP_MX}\r\n"
+            f"ST: {SSDP_ST}\r\n\r\n"
         )
         logger.info("Starting SSDP discovery...")
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP) as sock:
+            with socket.socket(
+                socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
+            ) as sock:
                 sock.settimeout(self.timeout)
-                sock.sendto(message.encode('utf-8'), (SSDP_ADDR, SSDP_PORT))
+                sock.sendto(message.encode("utf-8"), (SSDP_ADDR, SSDP_PORT))
                 start = time.time()
                 while time.time() - start < self.timeout:
                     try:
                         data, addr = sock.recvfrom(1024)
-                        response = data.decode('utf-8', errors='replace')
+                        response = data.decode("utf-8", errors="replace")
                         al_uri = self._parse_al(response)
                         if al_uri and self._is_valid_service_root(al_uri):
-                            self.found_hosts.append({'address': addr[0], 'service_root': al_uri})
-                            logger.info(f"Discovered Redfish endpoint: {addr[0]} {al_uri}")
+                            self.found_hosts.append(
+                                {"address": addr[0], "service_root": al_uri}
+                            )
+                            logger.info(
+                                f"Discovered Redfish endpoint: {addr[0]} {al_uri}"
+                            )
                         else:
-                            logger.debug(f"Received SSDP response from {addr[0]} but no valid AL header found.")
+                            logger.debug(
+                                f"Received SSDP response from {addr[0]} but no valid AL header found."
+                            )
                     except socket.timeout:
                         logger.info("SSDP discovery timed out.")
                         break
@@ -106,10 +116,11 @@ class SSDPDiscovery:
         """
         # SSDP responses may have multiline headers, so split and search each line
         for line in response.splitlines():
-            match = re.match(r'AL:\s*(.*)', line, re.IGNORECASE)
+            match = re.match(r"AL:\s*(.*)", line, re.IGNORECASE)
             if match:
                 return match.group(1).strip()
         return None
+
 
 # Example usage:
 # discovery = SSDPDiscovery()

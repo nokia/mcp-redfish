@@ -7,8 +7,8 @@ Redfish MCP server initialization module.
 Initializes MCP server for Redfish integration.
 """
 
-import os
 import logging
+
 from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)

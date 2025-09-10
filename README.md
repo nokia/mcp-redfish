@@ -35,37 +35,110 @@ uv sync
 
 ## Configuration
 
-To configure this Redfish MCP Server, consider the following environment variables:
+The Redfish MCP Server uses environment variables for configuration. The server includes comprehensive validation to ensure all settings are properly configured.
 
-| Name                          | Description                                               | Default Value              |
-|-------------------------------|-----------------------------------------------------------|----------------------------|
-| `REDFISH_HOSTS`               | The list of Redfish API endpoints                         | `[{"address:"127.0.0.1"}]` |
-| `REDFISH_PORT`                | The port used for the REdfish API                         | `443`                      |
-| `REDFISH_USERNAME`            | Redfish username                                          | `""`                       |
-| `REDFISH_PASSWORD`            | Redfish password                                          | ""                         |
-| `REDFISH_SERVER_CA_CERT`      | CA certificate for verifying server                       | None                       |
-| `MCP_TRANSPORT`               | Use the `stdio` or `sse` or `streamable-http` transport   | `stdio`                    |
+### Environment Variables
 
+| Name                          | Description                                               | Default Value              | Required |
+|-------------------------------|-----------------------------------------------------------|----------------------------|----------|
+| `REDFISH_HOSTS`               | JSON array of Redfish endpoint configurations             | `[{"address":"127.0.0.1"}]` | Yes      |
+| `REDFISH_PORT`                | Default port for Redfish API (used when not specified per-host) | `443`           | No       |
+| `REDFISH_AUTH_METHOD`         | Authentication method: `basic` or `session`              | `session`                  | No       |
+| `REDFISH_USERNAME`            | Default username for authentication                       | `""`                       | No       |
+| `REDFISH_PASSWORD`            | Default password for authentication                       | `""`                       | No       |
+| `REDFISH_SERVER_CA_CERT`      | Path to CA certificate for server verification           | `None`                     | No       |
+| `REDFISH_DISCOVERY_ENABLED`   | Enable automatic endpoint discovery                       | `false`                    | No       |
+| `REDFISH_DISCOVERY_INTERVAL`  | Discovery interval in seconds                             | `30`                       | No       |
+| `MCP_TRANSPORT`               | Transport method: `stdio`, `sse`, or `streamable-http`   | `stdio`                    | No       |
+| `MCP_REDFISH_LOG_LEVEL`       | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `INFO`        | No       |
+
+### REDFISH_HOSTS Configuration
+
+The `REDFISH_HOSTS` environment variable accepts a JSON array of endpoint configurations. Each endpoint can have the following properties:
+
+```json
+[
+  {
+    "address": "192.168.1.100",
+    "port": 443,
+    "username": "admin",
+    "password": "password123",
+    "auth_method": "session",
+    "tls_server_ca_cert": "/path/to/ca-cert.pem"
+  },
+  {
+    "address": "192.168.1.101",
+    "port": 8443,
+    "username": "operator",
+    "password": "secret456",
+    "auth_method": "basic"
+  }
+]
+```
+
+**Per-host properties:**
+- `address` (required): IP address or hostname of the Redfish endpoint
+- `port` (optional): Port number (defaults to global `REDFISH_PORT`)
+- `username` (optional): Username (defaults to global `REDFISH_USERNAME`)
+- `password` (optional): Password (defaults to global `REDFISH_PASSWORD`)
+- `auth_method` (optional): Authentication method (defaults to global `REDFISH_AUTH_METHOD`)
+- `tls_server_ca_cert` (optional): Path to CA certificate (defaults to global `REDFISH_SERVER_CA_CERT`)
+
+### Configuration Methods
+
+### Configuration Methods
 
 There are several ways to set environment variables:
 
-1. **Using a `.env` File**:  
-  Place a `.env` file in your project directory with key-value pairs for each environment variable. Tools like `python-dotenv`, `pipenv`, and `uv` can automatically load these variables when running your application. This is a convenient and secure way to manage configuration, as it keeps sensitive data out of your shell history and version control (if `.env` is in `.gitignore`).
+1. **Using a `.env` File** (Recommended):  
+   Place a `.env` file in your project directory with key-value pairs for each environment variable. This is secure and convenient, keeping sensitive data out of version control.
 
-For example, create a `.env` file with the following content from the `.env.example` file provided in the repository:
+   ```bash
+   # Copy the example configuration
+   cp .env.example .env
+   
+   # Edit the .env file with your settings
+   nano .env
+   ```
 
-  ```bash
-cp .env.example .env
-  ```
-
-
-  Then edit the `.env` file to set your Redfish configuration
-
-OR,
+   Example `.env` file:
+   ```bash
+   # Redfish endpoint configuration
+   REDFISH_HOSTS='[{"address": "192.168.1.100", "username": "admin", "password": "secret123"}, {"address": "192.168.1.101", "port": 8443}]'
+   REDFISH_AUTH_METHOD=session
+   REDFISH_USERNAME=default_user
+   REDFISH_PASSWORD=default_pass
+   
+   # MCP configuration
+   MCP_TRANSPORT=stdio
+   MCP_REDFISH_LOG_LEVEL=INFO
+   ```
 
 2. **Setting Variables in the Shell**:  
-  You can export environment variables directly in your shell before running your application. For example:
-  This method is useful for temporary overrides or quick testing.
+   Export environment variables directly in your shell before running the application:
+   ```bash
+   export REDFISH_HOSTS='[{"address": "127.0.0.1"}]'
+   export MCP_TRANSPORT="stdio"
+   export MCP_REDFISH_LOG_LEVEL="DEBUG"
+   ```
+
+### Configuration Validation
+
+The server performs comprehensive validation on startup:
+
+- **JSON Syntax**: `REDFISH_HOSTS` must be valid JSON
+- **Required Fields**: Each host must have an `address` field
+- **Port Ranges**: Ports must be between 1 and 65535
+- **Authentication Methods**: Must be `basic` or `session`
+- **Transport Types**: Must be `stdio`, `sse`, or `streamable-http`
+- **Log Levels**: Must be `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`
+
+If validation fails, the server will:
+1. Log detailed error messages
+2. Show a deprecation warning about falling back to legacy parsing
+3. Attempt to continue with basic configuration parsing
+
+**Note**: The legacy fallback is deprecated and will be removed in future versions. Please ensure your configuration follows the validated format.
 
 ## Transports
 
@@ -125,10 +198,10 @@ You can configure Claude Desktop to use this MCP Server.
                 "src/main.py"
             ],
             "env": {
-                "REDFISH_HOSTS": "<the_list_of_your_redfish_endpoints>",
-                "REDFISH_PORT": "<your_redfish_port>",
-                "REDFISH_PASSWORD": "<your_redfish_password>",
-                "REDFISH_SERVER_CA_CERT": "<your_redfish_server_ca_path>",
+                "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
+                "REDFISH_AUTH_METHOD": "session",
+                "MCP_TRANSPORT": "stdio",
+                "MCP_REDFISH_LOG_LEVEL": "INFO"
             }
         }
     }
@@ -171,9 +244,9 @@ To use the Redfish MCP Server with VS Code, you need:
         "src/main.py"
       ],
       "env": {
-        "REDFISH_HOSTS": "<the_list_of_your_redfish_endpoints>",
-        "REDFISH_PORT": "<your_redfish_port>",
-        "REDFISH_PASSWORD": "<your_redfish_password>",
+        "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
+        "REDFISH_AUTH_METHOD": "session",
+        "MCP_TRANSPORT": "stdio"
       }
     }
   }
@@ -195,9 +268,9 @@ To use the Redfish MCP Server with VS Code, you need:
           "src/main.py"
         ],
         "env": {
-          "REDFISH_HOSTS": "<the_list_of_your_redfish_endpoints>",
-          "REDFISH_PORT": "<your_redfish_port>",
-          "REDFISH_PASSWORD": "<your_redfish_password>",
+          "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
+          "REDFISH_AUTH_METHOD": "session",
+          "MCP_TRANSPORT": "stdio"
         }
       }
     }

@@ -3,12 +3,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import logging
+import re
 import socket
 import time
-import re
-import logging
 import urllib.parse
-import os
 
 from common.hosts import update_discovered_hosts
 
@@ -70,7 +69,7 @@ class SSDPDiscovery:
                             logger.debug(
                                 f"Received SSDP response from {addr[0]} but no valid AL header found."
                             )
-                    except socket.timeout:
+                    except TimeoutError:
                         logger.info("SSDP discovery timed out.")
                         break
                     except Exception as e:

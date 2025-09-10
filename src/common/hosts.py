@@ -3,11 +3,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+import json
+import logging
 import os
 import threading
-import json
-
-import logging
 
 logger = logging.getLogger(__name__)
 

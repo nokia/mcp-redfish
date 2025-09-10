@@ -2,11 +2,11 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-import unittest
-from unittest.mock import patch, MagicMock
-import sys
-import os
 import json
+import os
+import sys
+import unittest
+from unittest.mock import MagicMock, patch
 
 # Patch sys.path to import from src
 sys.path.insert(
@@ -14,9 +14,9 @@ sys.path.insert(
 )
 
 from fastmcp import Client
-import tools.get as get_mod
+from fastmcp.exceptions import ToolError
+
 import common.server
-from fastmcp.exceptions import ValidationError, ToolError
 
 
 class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):

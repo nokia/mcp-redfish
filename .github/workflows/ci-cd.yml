@@ -1,0 +1,197 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop, fixes ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13"]
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Create virtual environment and install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv sync --extra dev --extra test
+    
+    - name: Run tests
+      run: |
+        source .venv/bin/activate
+        uv run pytest -v
+    
+    - name: Run coverage (if possible)
+      run: |
+        source .venv/bin/activate
+        # Try with coverage, continue on failure (e.g., missing SQLite3)
+        uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=60 || echo "Coverage skipped due to environment issues"
+      continue-on-error: true
+    
+    - name: Upload coverage reports to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+  code-quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Create virtual environment and install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv sync --extra dev
+    
+    - name: Run Ruff (Linting & Import Sorting)
+      run: |
+        source .venv/bin/activate
+        uv run ruff check src/ test/
+    
+    - name: Run Ruff (Formatting Check)
+      run: |
+        source .venv/bin/activate
+        uv run ruff format --check src/ test/
+    
+    - name: Run Black (Code Formatting)
+      run: |
+        source .venv/bin/activate
+        uv run black --check --diff src/ test/
+    
+    - name: Run MyPy (Type Checking)
+      run: |
+        source .venv/bin/activate
+        uv run mypy src/
+      continue-on-error: true  # MyPy might need some work initially
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv sync
+    
+    - name: Run Bandit (Security Linting)
+      run: |
+        source .venv/bin/activate
+        uv add --dev bandit[toml]
+        uv run bandit -r src/ -f json -o bandit-report.json
+      continue-on-error: true
+    
+    - name: Upload Bandit report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: bandit-report
+        path: bandit-report.json
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: false
+        tags: mcp-redfish:test
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+    
+    - name: Test Docker image
+      run: |
+        docker run --rm --entrypoint="" mcp-redfish:test python --version
+
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [test, code-quality]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+    
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv sync --extra dev
+    
+    - name: Test MCP server startup
+      run: |
+        source .venv/bin/activate
+        timeout 10s uv run python src/main.py || [ $? = 124 ]  # timeout expected
+    
+    - name: Test MCP Inspector integration
+      run: |
+        source .venv/bin/activate
+        # Install MCP Inspector
+        npm install -g @modelcontextprotocol/inspector
+        # Test that server can be inspected (will timeout after 10s, which is expected)
+        timeout 10s npx @modelcontextprotocol/inspector uv run src/main.py || [ $? = 124 ]

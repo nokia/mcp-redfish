@@ -7,15 +7,15 @@ Main entry point for Redfish MCP server.
 Handles SSDP discovery and MCP server startup.
 """
 
+import logging
 import os
 import threading
 import time
-import logging
+
+import tools  # noqa: F401 - Import tools to register them with MCP server
+from common.config import MCP_TRANSPORT
 from common.discovery import SSDPDiscovery
 from common.server import mcp
-import tools.servers
-import tools.get
-from common.config import MCP_TRANSPORT
 
 
 class RedfishMCPServer:

@@ -6,16 +6,14 @@
 Tool for fetching Redfish resource data via MCP server integration.
 """
 
-import os
+import logging
 import urllib.parse
 
 from fastmcp.exceptions import ToolError, ValidationError
 
 import common.config
-from common.client import RedfishClient
-import logging
-import common.config
 import common.hosts
+from common.client import RedfishClient
 from common.server import mcp
 
 logger = logging.getLogger(__name__)
@@ -49,7 +47,7 @@ async def get_resource_data(url: str) -> dict:
         servers = common.hosts.get_hosts()
     except Exception as e:
         logger.error(f"Failed to load Redfish servers: {e}")
-        raise ToolError(f"Failed to load Redfish servers: {e}")
+        raise ToolError(f"Failed to load Redfish servers: {e}") from e
     server_cfg = None
     for srv in servers:
         if srv.get("address") == server_address:

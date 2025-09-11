@@ -8,8 +8,8 @@ Tool for listing accessible Redfish servers via MCP integration.
 
 import logging
 
-import common.hosts
-from common.server import mcp
+from .. import common
+from ..common.server import mcp
 
 logger = logging.getLogger(__name__)
 

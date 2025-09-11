@@ -2,19 +2,21 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
+from typing import Any
+
 import redfish
 from fastmcp.exceptions import ToolError, ValidationError
 from redfish.rest.v1 import AuthMethod
 
 
 class RedfishClient:
-    def __init__(self, server_cfg, common_cfg):
+    def __init__(self, server_cfg: dict[str, Any], common_cfg: Any) -> None:
         self.server_cfg = server_cfg
         self.common_cfg = common_cfg
         self.client = None
         self._setup_client()
 
-    def _setup_client(self):
+    def _setup_client(self) -> None:
         auth_method = self.server_cfg.get(
             "auth_method"
         ) or self.common_cfg.REDFISH_CFG.get("auth_method")
@@ -33,32 +35,38 @@ class RedfishClient:
         )
         base_url = f"https://{self.server_cfg.get('address')}:{port}"
         try:
-            self.client = redfish.redfish_client(
+            client = redfish.redfish_client(
                 base_url=base_url,
                 username=username,
                 password=password,
                 default_prefix="/redfish/v1",
             )
+
+            ca_cert = self.server_cfg.get(
+                "tls_server_ca_cert"
+            ) or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
+            if ca_cert:
+                client.cafile = ca_cert
+
+            client.login(auth=auth_method)
+            self.client = client
         except Exception as e:
             raise ToolError(f"Failed to create Redfish client: {e}") from e
-        ca_cert = self.server_cfg.get(
-            "tls_server_ca_cert"
-        ) or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
-        if ca_cert:
-            self.client.cafile = ca_cert
-        try:
-            self.client.login(auth=auth_method)
-        except Exception as e:
-            raise ToolError(f"Redfish login failed: {e}") from e
 
-    def get(self, resource_path):
+    def get(self, resource_path: str) -> Any:
+        if not self.client:
+            raise ToolError("Redfish client not initialized")
+
         try:
             response = self.client.get(resource_path)
         except Exception as e:
             raise ToolError(f"Redfish GET request failed: {e}") from e
-        return response
 
-    def logout(self):
+        if response is None:
+            raise ToolError("Redfish GET request returned None")
+        return response.dict
+
+    def logout(self) -> None:
         if self.client:
             try:
                 self.client.logout()

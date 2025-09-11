@@ -16,8 +16,8 @@ import pytest
 src_dir = Path(__file__).parent.parent / "src"
 sys.path.insert(0, str(src_dir))
 
-# Import tools to register them with MCP server
-import tools  # noqa: F401, E402
+# Import the package properly - this will trigger tool registration
+import src.tools  # noqa: F401, E402
 
 # Test environment variables
 os.environ.update(

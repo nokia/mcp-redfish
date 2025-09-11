@@ -9,7 +9,7 @@ import socket
 import time
 import urllib.parse
 
-from common.hosts import update_discovered_hosts
+from .hosts import update_discovered_hosts
 
 logger = logging.getLogger(__name__)
 

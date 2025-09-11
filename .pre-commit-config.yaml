@@ -24,17 +24,12 @@ repos:
       - id: ruff-format
         name: ruff (format)
 
-  - repo: https://github.com/psf/black
-    rev: 23.12.1
-    hooks:
-      - id: black
-        name: black (format final)
-        language_version: python3.13
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
-    hooks:
-      - id: mypy
-        name: mypy (type check)
-        additional_dependencies: [types-all]
-        args: [--ignore-missing-imports]
+  # MyPy type checking disabled in pre-commit due to module resolution conflicts
+  # Use 'make type-check' for proper type checking
+  # - repo: https://github.com/pre-commit/mirrors-mypy
+  #   rev: v1.8.0
+  #   hooks:
+  #     - id: mypy
+  #       name: mypy (type check)
+  #       args: [--ignore-missing-imports, --no-strict-optional, --disable-error-code=import-untyped, --explicit-package-bases]
+  #       exclude: ^test/

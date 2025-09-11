@@ -15,14 +15,15 @@ sys.path.insert(
 
 from fastmcp import Client
 
-import common.server
+import src.common.server
+import src.tools  # This ensures tools are registered
 
 
 class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
-    @patch("common.hosts.get_hosts")
+    @patch("src.common.hosts.get_hosts")
     async def test_list_endpoints_empty(self, mock_get_hosts):
         mock_get_hosts.return_value = []
-        async with Client(common.server.mcp) as client:
+        async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
             # Handle both direct result and CallToolResult
             if hasattr(result, "content"):
@@ -31,14 +32,14 @@ class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
                 data = result
             self.assertEqual(len(data), 0)
 
-    @patch("common.hosts.get_hosts")
+    @patch("src.common.hosts.get_hosts")
     async def test_list_endpoints_with_addresses(self, mock_get_hosts):
         mock_get_hosts.return_value = [
             {"address": "host1"},
             {"address": "host2"},
             {"noaddress": "host3"},
         ]
-        async with Client(common.server.mcp) as client:
+        async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
             # Handle both direct result and CallToolResult
             if hasattr(result, "content"):

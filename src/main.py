@@ -12,10 +12,12 @@ import os
 import threading
 import time
 
-import tools  # noqa: F401 - Import tools to register them with MCP server
-from common.config import MCP_TRANSPORT
-from common.discovery import SSDPDiscovery
-from common.server import mcp
+from . import tools  # noqa: F401 - Import tools to register them with MCP server
+from .common.config import MCP_TRANSPORT
+from .common.discovery import SSDPDiscovery
+from .common.server import mcp
+
+logger = logging.getLogger(__name__)
 
 
 class RedfishMCPServer:
@@ -23,7 +25,7 @@ class RedfishMCPServer:
     Main Redfish MCP server class. Handles SSDP discovery and MCP server startup.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
         self.logger.info("Starting the RedfishMCPServer")
         self.discovery_enabled = (
@@ -39,7 +41,7 @@ class RedfishMCPServer:
             )
             self.discovery_thread.start()
 
-    def _run_discovery(self):
+    def _run_discovery(self) -> None:
         """
         Periodically runs SSDP discovery in a background thread.
         """
@@ -52,7 +54,7 @@ class RedfishMCPServer:
                 self.logger.error(f"[SSDP Discovery] Error: {e}")
             time.sleep(self.discovery_interval)
 
-    def run(self):
+    def run(self) -> None:
         """
         Starts the MCP server with the configured transport.
         """
@@ -62,7 +64,7 @@ class RedfishMCPServer:
             self.logger.error(f"Error running mcp: {e}")
 
 
-def main():
+def main() -> None:
     """
     Main entry point for the Redfish MCP server.
     """

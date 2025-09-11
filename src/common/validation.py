@@ -33,7 +33,7 @@ class HostConfig:
     auth_method: str | None = None
     tls_server_ca_cert: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate host configuration after initialization."""
         if not self.address:
             raise ValueError("Host address cannot be empty")
@@ -63,7 +63,7 @@ class RedfishConfig:
     discovery_enabled: bool = False
     discovery_interval: int = 30
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate Redfish configuration after initialization."""
         if self.port < 1 or self.port > 65535:
             raise ValueError(f"Port must be between 1 and 65535, got: {self.port}")
@@ -89,7 +89,7 @@ class MCPConfig:
     transport: MCPTransportType = "stdio"
     log_level: str = "INFO"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate MCP configuration after initialization."""
         if self.transport not in VALID_MCP_TRANSPORTS:
             raise ValueError(
@@ -148,7 +148,7 @@ class ConfigValidator:
 
     @staticmethod
     def get_env_int(
-        key: str, default: int, min_val: int = None, max_val: int = None
+        key: str, default: int, min_val: int | None = None, max_val: int | None = None
     ) -> int:
         """Get integer value from environment variable with optional bounds checking."""
         try:
@@ -191,8 +191,13 @@ class ConfigValidator:
             )
 
             # Build MCP configuration
+            transport_str = os.getenv("MCP_TRANSPORT", "stdio")
+            if transport_str not in VALID_MCP_TRANSPORTS:
+                raise ConfigurationError(
+                    f"Invalid transport: {transport_str}. Must be one of: {VALID_MCP_TRANSPORTS}"
+                )
             mcp_config = MCPConfig(
-                transport=os.getenv("MCP_TRANSPORT", "stdio"),
+                transport=transport_str,  # type: ignore[arg-type]
                 log_level=os.getenv("MCP_REDFISH_LOG_LEVEL", "INFO"),
             )
 

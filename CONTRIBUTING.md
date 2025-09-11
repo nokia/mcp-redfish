@@ -8,7 +8,7 @@ need to follow.
 Contributors of this project should state that they agree with the terms published at https://developercertificate.org/
 for their contribution. To do this when creating a commit with the Git CLI, a sign-off can be added with
 [the -s option](https://git-scm.com/docs/git-commit#git-commit--s). The sign-off is stored as part of the commit message
-itself. 
+itself.
 
 ## Code reviews
 

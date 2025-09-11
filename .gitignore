@@ -8,3 +8,27 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Testing and quality assurance artifacts
+.coverage
+coverage.xml
+bandit-report.json
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE and editor files
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

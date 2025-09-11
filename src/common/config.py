@@ -11,10 +11,16 @@ import json
 import logging
 import os
 import warnings
+from typing import Any
 
 from dotenv import load_dotenv
 
-from .validation import ConfigurationError, load_validated_config
+from .validation import (
+    ConfigurationError,
+    MCPConfig,
+    RedfishConfig,
+    load_validated_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +29,12 @@ load_dotenv()
 
 # Load and validate configuration
 try:
+    REDFISH_CONFIG: RedfishConfig
+    MCP_CONFIG: MCPConfig
     REDFISH_CONFIG, MCP_CONFIG = load_validated_config()
 
     # Legacy compatibility - maintain the old REDFISH_CFG format
-    REDFISH_CFG = {
+    REDFISH_CFG: dict[str, Any] = {
         "hosts": [
             {
                 "address": host.address,
@@ -67,11 +75,9 @@ except ConfigurationError as e:
 
     logger.info("Falling back to legacy configuration loading...")
 
-    # Fallback to legacy behavior for backward compatibility
-    MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")
-
     # Parse hosts as JSON, handle errors gracefully
     hosts_env = os.getenv("REDFISH_HOSTS", '[{"address": "127.0.0.1"}]')
+    hosts: list[dict[str, Any]]
     try:
         hosts = json.loads(hosts_env)
         if not isinstance(hosts, list):
@@ -80,6 +86,8 @@ except ConfigurationError as e:
         logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
         hosts = [{"address": "127.0.0.1"}]
 
+    # Reassign variables for legacy fallback
+    MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")  # type: ignore[assignment]
     REDFISH_CFG = {
         "hosts": hosts,
         "port": int(os.getenv("REDFISH_PORT", 443)),
@@ -89,6 +97,6 @@ except ConfigurationError as e:
         "tls_server_ca_cert": os.getenv("REDFISH_SERVER_CA_CERT", None),
     }
 
-    # Create dummy config objects for compatibility
-    REDFISH_CONFIG = None
-    MCP_CONFIG = None
+    # Reset config objects for compatibility
+    REDFISH_CONFIG = None  # type: ignore[assignment]
+    MCP_CONFIG = None  # type: ignore[assignment]

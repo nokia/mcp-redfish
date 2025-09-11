@@ -3,15 +3,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import asyncio
+import os
 from pathlib import Path
-from autogen_ext.models.openai import OpenAIChatCompletionClient
-from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
+
 from autogen_agentchat.agents import AssistantAgent
-from autogen_core.memory import ListMemory
 from autogen_agentchat.conditions import TextMentionTermination
 from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.ui import Console
-import os
+from autogen_core.memory import ListMemory
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_ext.tools.mcp import StdioServerParams, mcp_server_tools
 from dotenv import load_dotenv
 
 # Get environment variables
@@ -21,13 +22,19 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable is not set.")
 
+
 async def main() -> None:
     # Setup server params for local filesystem access
     parent = Path(__file__).parent.parent
     redfish_server = StdioServerParams(
-        command="uv", args=["run", "--directory", str(parent), "-m", "src.main"],
-        env={"PYTHONPATH": "./src", "REDFISH_HOSTS": '[{"address": ""}]',
-             "REDFISH_USERNAME": "", "REDFISH_PASSWORD": ""}
+        command="uv",
+        args=["run", "--directory", str(parent), "-m", "src.main"],
+        env={
+            "PYTHONPATH": "./src",
+            "REDFISH_HOSTS": '[{"address": ""}]',
+            "REDFISH_USERNAME": "",
+            "REDFISH_PASSWORD": "",
+        },
     )
     redfish_tools = await mcp_server_tools(redfish_server)
 
@@ -53,7 +60,7 @@ async def main() -> None:
         ),
     )
 
-   # Termination condition that stops the task if the agent responds with a text message.
+    # Termination condition that stops the task if the agent responds with a text message.
     termination_condition = TextMentionTermination("FINISHED")
 
     # Create a team with the looped assistant agent and the termination condition.
@@ -64,8 +71,11 @@ async def main() -> None:
 
     # Run the team with a task and print the messages to the console.
     await Console(
-        team.run_stream(task="List the MAC addresses of the available Redfish endpoints")
+        team.run_stream(
+            task="List the MAC addresses of the available Redfish endpoints"
+        )
     )
+
 
 if __name__ == "__main__":
     asyncio.run(main())

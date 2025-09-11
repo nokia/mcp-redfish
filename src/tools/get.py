@@ -11,10 +11,9 @@ import urllib.parse
 
 from fastmcp.exceptions import ToolError, ValidationError
 
-import common.config
-import common.hosts
-from common.client import RedfishClient
-from common.server import mcp
+from .. import common
+from ..common.client import RedfishClient
+from ..common.server import mcp
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,10 @@ async def get_resource_data(url: str) -> dict:
     try:
         client = RedfishClient(server_cfg, common.config)
         response = client.get(resource_path)
-        return response.dict
+        # Ensure we return a dict[Any, Any] as expected by the return type
+        if isinstance(response, dict):
+            return response
+        return {}
     finally:
         if client:
             client.logout()

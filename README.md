@@ -9,7 +9,7 @@ The Redfish MCP Server is a **natural language interface** designed for agentic 
 ## Features
 - **Natural Language Queries**: Enables AI agents to query the data of infrastrcuture components using natural language.
 - **Seamless MCP Integration**: Works with any **MCP client** for smooth communication.
-- **Full Redfish Support**: It wraps the [Python Redfish library](https://github.com/DMTF/python-redfish-library) 
+- **Full Redfish Support**: It wraps the [Python Redfish library](https://github.com/DMTF/python-redfish-library)
 
 ## Tools
 
@@ -24,7 +24,7 @@ Follow these instructions to install the server.
 
 ```sh
 # Clone the repository
-git clone 
+git clone
 cd mcp-redfish
 
 # Install dependencies using uv
@@ -90,13 +90,13 @@ The `REDFISH_HOSTS` environment variable accepts a JSON array of endpoint config
 
 There are several ways to set environment variables:
 
-1. **Using a `.env` File** (Recommended):  
+1. **Using a `.env` File** (Recommended):
    Place a `.env` file in your project directory with key-value pairs for each environment variable. This is secure and convenient, keeping sensitive data out of version control.
 
    ```bash
    # Copy the example configuration
    cp .env.example .env
-   
+
    # Edit the .env file with your settings
    nano .env
    ```
@@ -108,13 +108,13 @@ There are several ways to set environment variables:
    REDFISH_AUTH_METHOD=session
    REDFISH_USERNAME=default_user
    REDFISH_PASSWORD=default_pass
-   
+
    # MCP configuration
    MCP_TRANSPORT=stdio
    MCP_REDFISH_LOG_LEVEL=INFO
    ```
 
-2. **Setting Variables in the Shell**:  
+2. **Setting Variables in the Shell**:
    Export environment variables directly in your shell before running the application:
    ```bash
    export REDFISH_HOSTS='[{"address": "127.0.0.1"}]'

@@ -115,16 +115,16 @@ pre-commit-run: install-dev ## Run pre-commit checks on all files
 
 # Development targets
 run-stdio: install ## Run MCP server with stdio transport
-	MCP_TRANSPORT=stdio uv run python src/main.py
+	MCP_TRANSPORT=stdio uv run python -m src.main
 
 run-sse: install ## Run MCP server with SSE transport (http://localhost:8000/sse)
-	MCP_TRANSPORT=sse uv run python src/main.py
+	MCP_TRANSPORT=sse uv run python -m src.main
 
 run-streamable-http: install ## Run MCP server with streamable-http transport
-	MCP_TRANSPORT=streamable-http uv run python src/main.py
+	MCP_TRANSPORT=streamable-http uv run python -m src.main
 
 inspect: install ## Run MCP Inspector for debugging
-	npx @modelcontextprotocol/inspector uv run python src/main.py
+	npx @modelcontextprotocol/inspector uv run python -m src.main
 
 # Docker targets
 docker-build: ## Build Docker image (set HTTP_PROXY/HTTPS_PROXY env vars for proxy support)

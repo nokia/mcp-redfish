@@ -181,7 +181,7 @@ jobs:
     - name: Test MCP server startup
       run: |
         source .venv/bin/activate
-        timeout 10s uv run python src/main.py || [ $? = 124 ]  # timeout expected
+        timeout 10s uv run python -m src.main || [ $? = 124 ]  # timeout expected
 
     - name: Test MCP Inspector integration
       run: |
@@ -189,4 +189,4 @@ jobs:
         # Install MCP Inspector
         npm install -g @modelcontextprotocol/inspector
         # Test that server can be inspected (will timeout after 10s, which is expected)
-        timeout 10s npx @modelcontextprotocol/inspector uv run src/main.py || [ $? = 124 ]
+        timeout 10s npx @modelcontextprotocol/inspector uv run python -m src.main || [ $? = 124 ]

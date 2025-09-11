@@ -7,7 +7,7 @@ The Redfish MCP Server is a **natural language interface** designed for agentic 
 - "Get the data of ethernet interfaces of the infrastructure component X"
 
 ## Features
-- **Natural Language Queries**: Enables AI agents to query the data of infrastrcuture components using natural language.
+- **Natural Language Queries**: Enables AI agents to query the data of infrastructure components using natural language.
 - **Seamless MCP Integration**: Works with any **MCP client** for smooth communication.
 - **Full Redfish Support**: It wraps the [Python Redfish library](https://github.com/DMTF/python-redfish-library)
 
@@ -18,19 +18,37 @@ This MCP Server provides tools to manage the data of infrastructure via the Redf
 - `list_endpoints` to query the Redfish API endpoints that are configured for the MCP Server.
 - `get_resource_data` to read the data of a specific resource (e.g. System, EthernetInterface, etc.)
 
+## Quick Start
+
+```bash
+# Clone and setup
+git clone <repository-url>
+cd mcp-redfish
+make install  # or 'make dev' for development setup
+
+# Option 1: Run with console script (recommended)
+uv run mcp-redfish
+# OR use Makefile shortcut:
+make run-stdio
+
+# Option 2: Run as module (development/CI)
+uv run python -m src.main
+```
+
 ## Installation
 
 Follow these instructions to install the server.
 
 ```sh
 # Clone the repository
-git clone
+git clone <repository-url>
 cd mcp-redfish
 
 # Install dependencies using uv
-uv venv
-source .venv/bin/activate
-uv sync
+make install
+
+# Or install with development dependencies
+make install-dev
 ```
 
 ## Configuration
@@ -86,8 +104,6 @@ The `REDFISH_HOSTS` environment variable accepts a JSON array of endpoint config
 
 ### Configuration Methods
 
-### Configuration Methods
-
 There are several ways to set environment variables:
 
 1. **Using a `.env` File** (Recommended):
@@ -140,27 +156,75 @@ If validation fails, the server will:
 
 **Note**: The legacy fallback is deprecated and will be removed in future versions. Please ensure your configuration follows the validated format.
 
+## Running the Server
+
+The MCP Redfish server supports multiple execution methods:
+
+### Console Script (Recommended)
+```bash
+# For end users and production deployments
+uv run mcp-redfish
+```
+
+### Module Execution
+```bash
+# For development and CI/CD environments
+uv run python -m src.main
+```
+
+### Makefile Targets
+```bash
+# Development shortcuts
+make run-stdio    # Run with stdio transport
+make run-sse      # Run with SSE transport
+make inspect      # Run with MCP Inspector
+```
+
 ## Transports
 
-This MCP server can be configured to handle requests locally, running as a process and communicating with the MCP client via `stdin` and `stdout`.
-This is the default configuration. The `sse` and `streamable-http` transport is also configurable so the server is available over the network.
-Configure the `MCP_TRANSPORT` variable accordingly.
+The MCP Redfish server supports multiple transport mechanisms for different deployment scenarios:
 
-```commandline
+### stdio Transport (Default)
+Uses standard input/output for communication, suitable for direct MCP client integration and automated testing environments.
+
+```bash
+# Set transport mode
+export MCP_TRANSPORT="stdio"
+
+# Console script execution
+uv run mcp-redfish
+
+# Module execution (for CI/CD)
+uv run python -m src.main
+```
+
+### SSE Transport (Server-Sent Events)
+Enables network-based communication, allowing remote MCP clients to connect over HTTP.
+
+```bash
+# Configure SSE transport
 export MCP_TRANSPORT="sse"
+
+# Start server - multiple options:
+make run-sse                                    # Makefile shortcut (recommended)
+uv run mcp-redfish --transport sse --port 8080  # Manual console script
+uv run python -m src.main --transport sse --port 8080  # Manual module execution
 ```
 
-Then start the server.
-
+Test the SSE server:
 ```commandline
-uv run src/main.py
-```
-
-Test the server:
-
-```commandline
-curl -i http://127.0.0.1:8000/sse
+curl -i http://127.0.0.1:8080/sse
 HTTP/1.1 200 OK
+```
+
+### streamable-http Transport
+Another network transport option for specific MCP client implementations.
+
+```bash
+export MCP_TRANSPORT="streamable-http"
+make run-streamable-http    # Makefile shortcut (recommended)
+# OR
+uv run mcp-redfish         # Manual execution
 ```
 
 Integrate with your favorite tool or client. The VS Code configuration for GitHub Copilot is:
@@ -195,7 +259,7 @@ You can configure Claude Desktop to use this MCP Server.
                 "--directory",
                 "<your_mcp_server_directory>",
                 "run",
-                "src/main.py"
+                "mcp-redfish"
             ],
             "env": {
                 "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
@@ -207,6 +271,8 @@ You can configure Claude Desktop to use this MCP Server.
     }
 }
 ```
+
+**Note**: You can also use module execution by changing the args to `["run", "python", "-m", "src.main"]` if needed for development or troubleshooting.
 
 ### Troubleshooting
 
@@ -241,7 +307,7 @@ To use the Redfish MCP Server with VS Code, you need:
         "--directory",
         "<your_mcp_server_directory>",
         "run",
-        "src/main.py"
+        "mcp-redfish"
       ],
       "env": {
         "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
@@ -265,7 +331,7 @@ To use the Redfish MCP Server with VS Code, you need:
           "--directory",
           "<your_mcp_server_directory>",
           "run",
-          "src/main.py"
+          "mcp-redfish"
         ],
         "env": {
           "REDFISH_HOSTS": "[{\"address\": \"192.168.1.100\", \"username\": \"admin\", \"password\": \"secret123\"}]",
@@ -278,6 +344,8 @@ To use the Redfish MCP Server with VS Code, you need:
 }
 ```
 
+**Note**: For development or troubleshooting, you can use module execution by changing the last arg from `"mcp-redfish"` to `"python", "-m", "src.main"`.
+
 For more information, see the [VS Code documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
 
 
@@ -286,9 +354,106 @@ For more information, see the [VS Code documentation](https://code.visualstudio.
 You can use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for visual debugging of this MCP Server.
 
 ```sh
-npx @modelcontextprotocol/inspector uv run src/main.py
+# Using console script (recommended)
+npx @modelcontextprotocol/inspector uv run mcp-redfish
+
+# Using module execution (for development)
+npx @modelcontextprotocol/inspector uv run python -m src.main
+
+# Or use the Makefile shortcut
+make inspect
 ```
 
 ## Example Use Cases
-- **AI Assistants**: Enable LLMs to fetch infrastructure data via Redfish API .
+- **AI Assistants**: Enable LLMs to fetch infrastructure data via Redfish API.
 - **Chatbots & Virtual Agents**: Retrieve data, and personalize responses.
+
+## Development
+
+### Prerequisites
+- Python 3.9+ (Python 3.13.5 recommended)
+- [uv](https://docs.astral.sh/uv/) for package management
+
+### Setup
+```bash
+# Clone the repository
+git clone <repository-url>
+cd mcp-redfish
+
+# Install development environment (includes dependencies + pre-commit hooks)
+make dev
+
+# Or install components separately:
+make install-dev    # Install development dependencies
+make pre-commit-install  # Set up pre-commit hooks
+```
+
+### Development Workflow
+The project includes a comprehensive Makefile with 42+ targets for development:
+
+```bash
+# Code quality
+make lint          # Run ruff linting
+make format        # Format code with ruff
+make type-check    # Run MyPy type checking
+make test          # Run pytest tests
+make security      # Run bandit security scan
+
+# Development servers
+make run-stdio     # Run with stdio transport
+make run-sse       # Run with SSE transport
+make run-streamable-http  # Run with streamable-http transport
+make inspect       # Run with MCP Inspector
+
+# All-in-one commands
+make all-checks    # Run full quality suite (lint, format, type-check, security, pre-commit)
+make check         # Quick check: linting and tests only
+make pre-commit-run # Run all pre-commit checks
+```
+
+### Code Organization
+```
+src/
+├── main.py              # Entry point and console script
+├── common/              # Shared utilities
+│   ├── __init__.py     # Package exports
+│   ├── config.py       # Configuration management
+│   └── hosts.py        # Host discovery and validation
+└── tools/              # MCP tool implementations
+    ├── __init__.py
+    ├── redfish_tools.py # Core Redfish operations
+    └── tool_registry.py # Tool registration
+```
+
+### Execution Patterns
+- **Console Script**: `uv run mcp-redfish` (recommended for users)
+- **Module Execution**: `uv run python -m src.main` (for development/CI)
+- **Direct Python**: `python src/main.py` (basic execution)
+
+### Testing
+```bash
+# Run all tests
+make test
+
+# Run with coverage
+make test-cov
+
+# Run specific test files (manual uv command needed)
+uv run pytest tests/test_config.py -v
+
+# Integration testing with MCP Inspector
+make inspect
+```
+
+### Pre-commit Hooks
+The project uses pre-commit hooks for code quality:
+- **ruff**: Linting and formatting
+- **mypy**: Type checking
+- **Custom checks**: Import sorting, trailing whitespace
+
+### Type System
+- Uses modern Python 3.9+ built-in types (`dict`, `list`) instead of `typing.Dict`, `typing.List`
+- Comprehensive type annotations with MyPy strict mode
+- Return type annotations for all functions
+
+For more details, see the Makefile targets: `make help`

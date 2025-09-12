@@ -83,11 +83,13 @@ warn_unreachable = false  # Disable unreachable code warnings
 strict_equality = true
 ignore_missing_imports = true  # Ignore missing stubs for external libraries
 # Handle src layout - simplified to avoid duplicate module detection
-files = ["src"]
+files = ["src", "e2e/python"]
 exclude = [
     "test/.*",
     ".*/__pycache__/.*"
 ]
+# Namespace packages configuration for e2e modules
+namespace_packages = true
 
 [tool.ruff]
 target-version = "py312"  # Use py312 for pre-commit compatibility
@@ -118,16 +120,18 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "test/**/*.py" = ["B011", "B018", "E402"]  # E402: Allow module imports after sys.path modifications
+"e2e/**/*.py" = ["B011", "B018", "E402"]   # E402: Allow module imports after sys.path modifications
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "common", "tools"]
-known-local-folder = ["test"]
+known-local-folder = ["test", "e2e"]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
 
 [tool.coverage.run]
 source = ["src"]
 omit = [
     "test/*",
+    "e2e/*",
     "*/__pycache__/*",
 ]
 

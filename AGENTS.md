@@ -164,6 +164,36 @@ uv run pytest -m "unit and not slow"
 - Coverage reports: XML and terminal output
 - Exclude patterns defined in pyproject.toml
 
+### End-to-End Testing
+
+The project includes comprehensive e2e testing using the DMTF Redfish Interface Emulator:
+
+```bash
+# Complete e2e test workflow
+make e2e-test
+
+# Individual e2e commands
+make e2e-emulator-setup     # Set up emulator and certificates
+make e2e-emulator-start     # Start Redfish Interface Emulator
+make e2e-test-framework     # Run comprehensive tests with Python framework (recommended)
+make e2e-emulator-status    # Check emulator status
+make e2e-emulator-logs      # View emulator logs
+make e2e-emulator-stop      # Stop emulator
+make e2e-emulator-clean     # Clean up everything
+```
+
+**E2E Test Types:**
+- **Simple Tests**: Basic functionality using MCP Inspector (no LLM API required)
+- **Agent Tests**: Full agent integration using OpenAI API (requires `OPENAI_API_KEY`)
+
+**E2E Environment:**
+- Uses DMTF Redfish Interface Emulator as test target
+- Self-signed SSL certificates for HTTPS testing
+- Docker-based emulator setup
+- Local development and CI/CD compatible
+
+For complete e2e testing documentation, see [E2E_TESTING.md](./E2E_TESTING.md).
+
 ## Security Considerations
 
 ### Security Scanning

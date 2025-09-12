@@ -2,14 +2,16 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
+# Optimized Dockerfile for Docker with cache mounts
 FROM python:3.13-slim
 RUN pip install --upgrade uv
 
 WORKDIR /app
 COPY . /app
 
-# Install dependencies and activate virtual environment
-RUN uv sync --locked
+# Install dependencies with cache optimization (Docker BuildKit feature)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked
 
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"

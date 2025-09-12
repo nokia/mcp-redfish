@@ -351,6 +351,8 @@ For more information, see the [VS Code documentation](https://code.visualstudio.
 
 ## Testing
 
+### Interactive Testing
+
 You can use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for visual debugging of this MCP Server.
 
 ```sh
@@ -362,6 +364,63 @@ npx @modelcontextprotocol/inspector uv run python -m src.main
 
 # Or use the Makefile shortcut
 make inspect
+```
+
+### End-to-End Testing
+
+For comprehensive testing, including testing against a real Redfish API, the project includes an e2e testing environment using the DMTF Redfish Interface Emulator:
+
+```bash
+# Quick start - run all e2e tests
+make e2e-test
+
+# Or step by step:
+make e2e-emulator-setup    # Set up emulator and certificates
+make e2e-emulator-start    # Start Redfish Interface Emulator
+make e2e-test-framework    # Run comprehensive tests with Python framework (recommended)
+make e2e-emulator-stop     # Stop emulator
+```
+
+> **Note**: The old target names (e.g., `make e2e-setup`, `make e2e-start`) are still supported for backward compatibility, but the new emulator-specific names are recommended for clarity.
+
+The e2e tests provide:
+- **Redfish Interface Emulator**: Simulated Redfish API for testing
+- **SSL/TLS Support**: Self-signed certificates for HTTPS testing
+- **CI/CD Integration**: Automated testing on pull requests
+- **Local Development**: Full testing environment on your machine
+
+For detailed e2e testing documentation, see [E2E_TESTING.md](./E2E_TESTING.md).
+
+### Container Runtime Support
+
+The project supports both Docker and Podman as container runtimes:
+
+- **Auto-Detection**: Automatically detects and uses available container runtime
+- **Docker**: Uses optimized Dockerfile with BuildKit cache mounts when available
+- **Podman**: Uses compatible Dockerfile without cache mounts for broader compatibility
+- **Manual Override**: Force specific runtime with `CONTAINER_RUNTIME` environment variable
+
+```bash
+# Auto-detect (default)
+make container-build
+
+# Force Docker
+CONTAINER_RUNTIME=docker make container-build
+
+# Force Podman
+CONTAINER_RUNTIME=podman make container-build
+# Or use convenience target
+make podman-build
+```
+
+### Unit Testing
+
+Run the standard test suite:
+
+```bash
+make test        # Run tests
+make test-cov    # Run with coverage
+make check       # Quick lint + test
 ```
 
 ## Example Use Cases

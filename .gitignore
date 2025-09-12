@@ -17,6 +17,10 @@ bandit-report.json
 .mypy_cache/
 .ruff_cache/
 
+# E2E testing artifacts
+e2e/certs/
+# E2E test artifacts
+
 # IDE and editor files
 .vscode/settings.json
 .idea/

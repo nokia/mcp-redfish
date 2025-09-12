@@ -79,17 +79,17 @@ jobs:
     - name: Run Ruff (Linting & Import Sorting)
       run: |
         source .venv/bin/activate
-        uv run ruff check src/ test/
+        uv run ruff check src/ test/ e2e/python/
 
     - name: Run Ruff (Formatting Check)
       run: |
         source .venv/bin/activate
-        uv run ruff format --check src/ test/
+        uv run ruff format --check src/ test/ e2e/python/
 
     - name: Run MyPy (Type Checking)
       run: |
         source .venv/bin/activate
-        uv run mypy src/
+        uv run mypy src/ e2e/python/
       continue-on-error: true  # MyPy might need some work initially
 
   security:
@@ -118,7 +118,7 @@ jobs:
     - name: Run Bandit (Security Linting)
       run: |
         source .venv/bin/activate
-        uv run bandit -r src/ -f json -o bandit-report.json
+        uv run bandit -r src/ e2e/python/ -f json -o bandit-report.json
       continue-on-error: true
 
     - name: Upload Bandit report
@@ -128,8 +128,8 @@ jobs:
         name: bandit-report
         path: bandit-report.json
 
-  docker:
-    name: Docker Build
+  container:
+    name: Container Build
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
 
@@ -139,7 +139,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build Docker image
+    - name: Build container image
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -149,7 +149,7 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
-    - name: Test Docker image
+    - name: Test container image
       run: |
         docker run --rm --entrypoint="" mcp-redfish:test python --version
 
@@ -190,3 +190,59 @@ jobs:
         npm install -g @modelcontextprotocol/inspector
         # Test that server can be inspected (will timeout after 10s, which is expected)
         timeout 10s npx @modelcontextprotocol/inspector uv run python -m src.main || [ $? = 124 ]
+
+  e2e-tests:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    needs: [test, code-quality]
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install uv
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+    - name: Install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv sync --extra dev
+
+    - name: Install Node.js for MCP Inspector
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y curl jq openssl
+
+    - name: Set up e2e environment
+      run: |
+        source .venv/bin/activate
+        make e2e-emulator-setup
+
+    - name: Run e2e tests
+      run: |
+        source .venv/bin/activate
+        make e2e-test-framework
+
+    - name: Check emulator logs on failure
+      if: failure()
+      run: |
+        echo "=== Emulator Logs ==="
+        make e2e-emulator-logs || echo "No logs available"
+
+    - name: Cleanup e2e environment
+      if: always()
+      run: |
+        make e2e-emulator-stop || true

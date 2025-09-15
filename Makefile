@@ -107,7 +107,7 @@ test: install-test ## Run tests with pytest
 	uv run pytest -v
 
 test-cov: install-test ## Run tests with coverage
-	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=58
+	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70
 
 lint: install-dev ## Run ruff linting and import sorting
 	uv run ruff check src/ test/ e2e/python/

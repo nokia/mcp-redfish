@@ -72,7 +72,7 @@ uv run pytest -v
 # Run tests with coverage
 make test-cov
 # OR directly:
-uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=60
+uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70
 
 # Run specific test types (if marked)
 uv run pytest -m unit      # Unit tests only
@@ -275,6 +275,27 @@ make lint format type-check security test
 - **Python versions**: 3.13 (primary)
 - **Checks**: Tests, coverage, quality, security, Docker build
 - **Reports**: Coverage uploaded to Codecov
+
+### Dependency Updates
+The project uses automated dependency updates via GitHub Actions:
+
+- **Schedule**: Weekly on Mondays at 9 AM UTC
+- **Workflow**: `dependency-updates.yml`
+- **Behavior**: Creates PRs with updated `uv.lock` file
+- **Testing**: Runs full test suite before creating PR
+
+**Important**: PRs created by the dependency update workflow use `GITHUB_TOKEN`, which means CI/CD workflows **may not run automatically** on these PRs due to GitHub security restrictions.
+
+**Solutions**:
+1. **Manual trigger**: Close and reopen the dependency update PR to trigger CI/CD workflows
+2. **Setup PAT** (recommended): Create a Personal Access Token with repo permissions and add it as `PAT_TOKEN` repository secret to enable automatic CI triggers
+
+**Setting up PAT for automatic CI**:
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate new token with `repo` scope
+3. Add token as repository secret named `PAT_TOKEN`
+4. Update `.github/workflows/dependency-updates.yml` line 47: change `secrets.GITHUB_TOKEN` to `secrets.PAT_TOKEN`
+5. Future dependency PRs will automatically trigger CI/CD workflows
 
 ### Review Process
 - Ensure all CI checks pass

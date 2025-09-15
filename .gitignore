@@ -16,6 +16,7 @@ bandit-report.json
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
 
 # E2E testing artifacts
 e2e/certs/

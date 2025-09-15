@@ -19,7 +19,8 @@ keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
     "redfish",
     "python-dotenv",
-    "fastmcp"
+    "fastmcp",
+    "tenacity>=8.0.0"
 ]
 
 [project.urls]

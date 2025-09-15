@@ -12,14 +12,8 @@ from pathlib import Path
 
 import pytest
 
-# Add src directory to Python path for imports
-src_dir = Path(__file__).parent.parent / "src"
-sys.path.insert(0, str(src_dir))
-
-# Import the package properly - this will trigger tool registration
-import src.tools  # noqa: F401, E402
-
-# Test environment variables
+# Set fast retry configuration BEFORE importing any src modules
+# This ensures the retry decorators pick up the fast configuration
 os.environ.update(
     {
         "REDFISH_HOSTS": '[{"address": "test-host.example.com"}]',
@@ -29,8 +23,21 @@ os.environ.update(
         "MCP_TRANSPORT": "stdio",
         "REDFISH_DISCOVERY_ENABLED": "false",
         "MCP_REDFISH_LOG_LEVEL": "WARNING",  # Reduce log noise in tests
+        # Fast retry configuration for testing - SET BEFORE IMPORTS
+        "REDFISH_MAX_RETRIES": "2",
+        "REDFISH_INITIAL_DELAY": "0.001",  # 1ms instead of 1s default
+        "REDFISH_MAX_DELAY": "0.1",  # 100ms instead of 60s default
+        "REDFISH_BACKOFF_FACTOR": "2.0",
+        "REDFISH_JITTER": "false",
     }
 )
+
+# Add src directory to Python path for imports
+src_dir = Path(__file__).parent.parent / "src"
+sys.path.insert(0, str(src_dir))
+
+# Import the package properly - this will trigger tool registration
+import src.tools  # noqa: F401, E402
 
 
 @pytest.fixture(scope="session")

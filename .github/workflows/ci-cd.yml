@@ -1,10 +1,9 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [ main, develop, fixes ]
+  # Run CI on all PRs to main branch (this is the quality gate)
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]
 
 jobs:
   test:
@@ -131,7 +130,8 @@ jobs:
   container:
     name: Container Build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    # Build container for all events (PRs and pushes)
+    # This ensures Docker builds are tested before merging
 
     steps:
     - uses: actions/checkout@v4
@@ -153,49 +153,11 @@ jobs:
       run: |
         docker run --rm --entrypoint="" mcp-redfish:test python --version
 
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [test, code-quality]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: "3.13"
-
-    - name: Install uv
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-    - name: Install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --extra dev
-
-    - name: Test MCP server startup
-      run: |
-        source .venv/bin/activate
-        timeout 10s uv run python -m src.main || [ $? = 124 ]  # timeout expected
-
-    - name: Test MCP Inspector integration
-      run: |
-        source .venv/bin/activate
-        # Install MCP Inspector
-        npm install -g @modelcontextprotocol/inspector
-        # Test that server can be inspected (will timeout after 10s, which is expected)
-        timeout 10s npx @modelcontextprotocol/inspector uv run python -m src.main || [ $? = 124 ]
-
   e2e-tests:
     name: End-to-End Tests
     runs-on: ubuntu-latest
     needs: [test, code-quality]
-    if: github.event_name == 'pull_request'
+    # E2E tests include MCP server startup, inspector integration, and real Redfish testing
 
     steps:
     - uses: actions/checkout@v4

@@ -11,10 +11,14 @@ environments, going beyond simple unit tests to test error handling robustness.
 
 import json
 import os
+import queue
 import ssl
 import sys
+import threading
 import unittest
 from unittest.mock import MagicMock, patch
+
+import requests.exceptions
 
 # Patch sys.path to import from src
 sys.path.insert(
@@ -37,11 +41,9 @@ class TestComplexErrorScenarios(unittest.TestCase):
 
         self.server_cfg = {
             "address": "test-host.example.com",
-            "port": 443,
             "username": "testuser",
             "password": "testpass",
-            "auth_method": "session",
-            "verify_cert": True,
+            "auth_method": "basic",
         }
 
         self.common_cfg = type(
@@ -49,11 +51,8 @@ class TestComplexErrorScenarios(unittest.TestCase):
             (),
             {
                 "REDFISH_CFG": {
-                    "max_retries": 2,
-                    "initial_delay": 0.01,
-                    "max_delay": 1.0,
-                    "backoff_factor": 2.0,
-                    "jitter": False,
+                    "auth_method": "basic",
+                    "port": 443,
                 }
             },
         )()
@@ -142,8 +141,13 @@ class TestComplexErrorScenarios(unittest.TestCase):
                             # Some malformed responses might cause exceptions, that's ok
                             pass
 
-    def test_network_timeout_scenarios(self):
-        """Test various network timeout and connection scenarios."""
+    @patch("redfish.redfish_client")
+    def test_network_timeout_scenarios(self, mock_redfish_client):
+        """Test various network timeout and connection scenarios.
+
+        Note: Fast retry configuration is automatically applied via conftest.py
+        to ensure tests run quickly while still testing retry behavior.
+        """
         network_scenarios = [
             {
                 "name": "connection_timeout",
@@ -179,22 +183,41 @@ class TestComplexErrorScenarios(unittest.TestCase):
 
         for scenario in network_scenarios:
             with self.subTest(scenario=scenario["name"]):
-                with patch(
-                    "src.common.client.redfish.redfish_client"
-                ) as mock_redfish_client:
-                    mock_redfish_client.side_effect = scenario["error"]
+                # Reset the shared mock for this subtest
+                mock_redfish_client.reset_mock()
 
-                    if scenario["should_retry"]:
-                        # Should retry and eventually fail with RetryError
-                        with self.assertRaises(RetryError):
-                            RedfishClient(self.server_cfg, self.common_cfg)
+                # Create scenario-specific side effect with call counting
+                call_count = 0
 
-                        # Verify retry attempts were made
-                        self.assertGreater(mock_redfish_client.call_count, 1)
-                    else:
-                        # Should fail immediately without retry
-                        with self.assertRaises(type(scenario["error"])):
-                            RedfishClient(self.server_cfg, self.common_cfg)
+                def make_side_effect(error):
+                    def side_effect(*args, **kwargs):
+                        nonlocal call_count
+                        call_count += 1
+                        # Always raise the error for timeout scenarios (no recovery)
+                        raise error
+
+                    return side_effect
+
+                mock_redfish_client.side_effect = make_side_effect(scenario["error"])
+
+                if scenario["should_retry"]:
+                    # Should retry and eventually fail with RetryError
+                    with self.assertRaises(RetryError):
+                        RedfishClient(self.server_cfg, self.common_cfg)
+
+                    # Verify retry attempts were made using local counter
+                    self.assertGreater(
+                        call_count,
+                        1,
+                        f"Expected multiple retry attempts for {scenario['name']}",
+                    )
+                else:
+                    # Should fail immediately without retry
+                    with self.assertRaises(type(scenario["error"])):
+                        RedfishClient(self.server_cfg, self.common_cfg)
+
+                # Clean up side effect for next iteration
+                mock_redfish_client.side_effect = None
 
     def test_ssl_certificate_issues(self):
         """Test various SSL certificate problems."""
@@ -241,9 +264,6 @@ class TestComplexErrorScenarios(unittest.TestCase):
 
     def test_concurrent_request_conflicts(self):
         """Test handling of concurrent request conflicts."""
-        import queue
-        import threading
-
         results = queue.Queue()
         errors = queue.Queue()
 
@@ -330,27 +350,37 @@ class TestComplexErrorScenarios(unittest.TestCase):
             # Should have made multiple attempts
             self.assertGreater(mock_redfish_client.call_count, 1)
 
-    def test_intermittent_network_issues(self):
+    @patch("redfish.redfish_client")
+    def test_intermittent_network_issues(self, mock_redfish_client):
         """Test handling of intermittent network connectivity."""
-        with patch("redfish.redfish_client") as mock_redfish_client:
-            mock_client = MagicMock()
+        # Create a side effect function that fails first, then succeeds
+        call_count = 0
 
-            # First attempt fails, second succeeds (intermittent issue)
-            mock_redfish_client.side_effect = [
-                ConnectionError("Intermittent failure"),
-                mock_client,
-            ]
+        def side_effect_func(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # Simulate a connection error that would occur before DNS resolution
+                raise requests.exceptions.ConnectionError("Connection refused")
 
+            # Return properly mocked client instance on second call
+            mock_client_instance = MagicMock()
+            mock_client_instance.login.return_value = None
+            mock_client_instance.cafile = None
             mock_response = MagicMock()
             mock_response.dict = {"status": "recovered"}
-            mock_client.get.return_value = mock_response
+            mock_client_instance.get.return_value = mock_response
+            mock_client_instance.logout.return_value = None
+            return mock_client_instance
 
-            # Should recover from intermittent issues
-            client = RedfishClient(self.server_cfg, self.common_cfg)
-            result = client.get("/redfish/v1/")
+        mock_redfish_client.side_effect = side_effect_func
 
-            self.assertEqual(result["status"], "recovered")
-            self.assertEqual(mock_redfish_client.call_count, 2)
+        # Should recover from intermittent issues
+        client = RedfishClient(self.server_cfg, self.common_cfg)
+        result = client.get("/redfish/v1/")
+
+        self.assertEqual(result["status"], "recovered")
+        self.assertEqual(mock_redfish_client.call_count, 2)
 
     def test_configuration_edge_cases(self):
         """Test edge cases in configuration handling."""

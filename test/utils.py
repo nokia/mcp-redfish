@@ -7,6 +7,7 @@ Test utilities and helper functions for mcp-redfish test suite.
 """
 
 import json
+import os
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -69,16 +70,12 @@ class MockEnvironment:
         self.original_values = {}
 
     def __enter__(self):
-        import os
-
         for key, value in self.env_vars.items():
             self.original_values[key] = os.environ.get(key)
             os.environ[key] = value
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        import os
-
         for key in self.env_vars:
             original_value = self.original_values[key]
             if original_value is None:

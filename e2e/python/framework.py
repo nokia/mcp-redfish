@@ -372,7 +372,24 @@ def validate_redfish_service_root(result: ToolCallResult) -> dict[str, Any]:
     if not result.structured_content:
         return {"valid": False, "message": "No structured content in response"}
 
-    data = result.structured_content
+    response_data = result.structured_content
+
+    # Handle new format with headers and data structure
+    if "data" in response_data and "headers" in response_data:
+        data = response_data["data"]
+        # Optionally validate headers too
+        headers = response_data["headers"]
+        if (
+            "Content-Type" in headers
+            and "application/json" not in headers["Content-Type"]
+        ):
+            return {
+                "valid": False,
+                "message": f"Unexpected Content-Type: {headers['Content-Type']}",
+            }
+    else:
+        # Fallback for old format during transition
+        data = response_data
 
     # Check for required Redfish service root fields
     required_fields = ["@odata.type", "Id", "Name", "RedfishVersion"]
@@ -422,6 +439,17 @@ def validate_non_empty_response() -> Callable:
 
     def validator(result: ToolCallResult) -> dict[str, Any]:
         has_content = bool(result.content or result.structured_content)
+
+        # For the new format, also check that data section is not empty
+        if result.structured_content and "data" in result.structured_content:
+            data_not_empty = bool(result.structured_content["data"])
+            return {
+                "valid": has_content and data_not_empty,
+                "message": "Response has content and data"
+                if (has_content and data_not_empty)
+                else "Response is empty or missing data",
+            }
+
         return {
             "valid": has_content,
             "message": "Response is not empty" if has_content else "Response is empty",

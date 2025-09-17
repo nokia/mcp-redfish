@@ -158,6 +158,59 @@ class RedfishClient:
         logger.debug(f"Successfully retrieved resource: {resource_path}")
         return response.dict
 
+    def get_with_headers(self, resource_path: str) -> dict[str, Any]:
+        """Get resource data with headers included."""
+        if not self.client:
+            raise ToolError("Redfish client not initialized")
+
+        logger.debug(f"Performing GET request for resource: {resource_path}")
+
+        try:
+            response = self.client.get(resource_path)
+        except Exception as e:
+            logger.warning(f"Redfish GET request failed for {resource_path}: {e}")
+            raise ToolError(f"Redfish GET request failed: {e}") from e
+
+        if response is None:
+            logger.error(f"Redfish GET request returned None for {resource_path}")
+            raise ToolError("Redfish GET request returned None")
+
+        # Extract specific headers we're interested in
+        headers = {}
+        all_headers = response.getheaders()
+
+        # Map of header names to look for (case-insensitive)
+        target_headers = {
+            "allow": "Allow",
+            "content-type": "Content-Type",
+            "content-encoding": "Content-Encoding",
+            "etag": "ETag",
+            "link": "Link",
+        }
+
+        # Extract target headers (case-insensitive search)
+        for header_name, header_value in all_headers:
+            header_lower = header_name.lower()
+            if header_lower in target_headers:
+                standard_name = target_headers[header_lower]
+                if standard_name == "Link":
+                    # Handle multiple Link headers
+                    if standard_name in headers:
+                        if isinstance(headers[standard_name], list):
+                            headers[standard_name].append(header_value)
+                        else:
+                            headers[standard_name] = [
+                                headers[standard_name],
+                                header_value,
+                            ]
+                    else:
+                        headers[standard_name] = header_value
+                else:
+                    headers[standard_name] = header_value
+
+        logger.debug(f"Successfully retrieved resource: {resource_path}")
+        return {"headers": headers, "data": response.dict if response.dict else {}}
+
     @retry(
         **get_retry_configuration(),
         before_sleep=before_sleep_log(logger, logging.WARNING),

@@ -55,7 +55,13 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
         url = "https://host1/redfish/v1/Systems/1"
         mock_response = MagicMock()
         mock_response.status = 200
-        mock_response.dict = {"data": "ok"}
+        mock_response.dict = {"name": "System1", "id": "1"}
+        mock_response.getheaders.return_value = [
+            ("Content-Type", "application/json"),
+            ("ETag", '"123456"'),
+            ("Allow", "GET, POST, PATCH"),
+            ("Link", "</redfish/v1/Systems/1/Actions>; rel=actions"),
+        ]
         mock_redfish_client_instance = MagicMock()
         mock_redfish_client_instance.login.return_value = None
         mock_redfish_client_instance.cafile = None
@@ -70,7 +76,98 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
                 data = json.loads(result.content[0].text) if result.content else {}
             else:
                 data = result
-            self.assertEqual(data, {"data": "ok"})
+
+            # Verify the new format with headers and data
+            self.assertIn("headers", data)
+            self.assertIn("data", data)
+            self.assertEqual(data["data"], {"name": "System1", "id": "1"})
+
+            # Verify headers are extracted correctly
+            headers = data["headers"]
+            self.assertEqual(headers["Content-Type"], "application/json")
+            self.assertEqual(headers["ETag"], '"123456"')
+            self.assertEqual(headers["Allow"], "GET, POST, PATCH")
+            self.assertEqual(
+                headers["Link"], "</redfish/v1/Systems/1/Actions>; rel=actions"
+            )
+
+    @patch("src.common.hosts.get_hosts")
+    @patch("redfish.redfish_client")
+    async def test_multiple_link_headers(self, mock_redfish_client, mock_get_hosts):
+        mock_get_hosts.return_value = [
+            {"address": "host1", "username": "u", "password": "p"}
+        ]
+        url = "https://host1/redfish/v1/Systems/1"
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.dict = {"name": "System1"}
+        mock_response.getheaders.return_value = [
+            ("Content-Type", "application/json"),
+            ("Link", "</redfish/v1/Systems/1/Actions>; rel=actions"),
+            ("Link", "</redfish/v1/Systems/1/Storage>; rel=storage"),
+        ]
+        mock_redfish_client_instance = MagicMock()
+        mock_redfish_client_instance.login.return_value = None
+        mock_redfish_client_instance.cafile = None
+        mock_redfish_client_instance.get.return_value = mock_response
+        mock_redfish_client_instance.logout.return_value = None
+        mock_redfish_client.return_value = mock_redfish_client_instance
+
+        async with Client(src.common.server.mcp) as client:
+            result = await client.call_tool("get_resource_data", {"url": url})
+            if hasattr(result, "content"):
+                data = json.loads(result.content[0].text) if result.content else {}
+            else:
+                data = result
+
+            # Verify multiple Link headers are handled as array
+            headers = data["headers"]
+            self.assertIsInstance(headers["Link"], list)
+            self.assertEqual(len(headers["Link"]), 2)
+            self.assertIn(
+                "</redfish/v1/Systems/1/Actions>; rel=actions", headers["Link"]
+            )
+            self.assertIn(
+                "</redfish/v1/Systems/1/Storage>; rel=storage", headers["Link"]
+            )
+
+    @patch("src.common.hosts.get_hosts")
+    @patch("redfish.redfish_client")
+    async def test_optional_headers_missing(self, mock_redfish_client, mock_get_hosts):
+        mock_get_hosts.return_value = [
+            {"address": "host1", "username": "u", "password": "p"}
+        ]
+        url = "https://host1/redfish/v1/Systems/1"
+        mock_response = MagicMock()
+        mock_response.status = 200
+        mock_response.dict = {"name": "System1"}
+        # Only include required headers, omit optional ones like Content-Encoding
+        mock_response.getheaders.return_value = [
+            ("Content-Type", "application/json"),
+            ("Allow", "GET"),
+        ]
+        mock_redfish_client_instance = MagicMock()
+        mock_redfish_client_instance.login.return_value = None
+        mock_redfish_client_instance.cafile = None
+        mock_redfish_client_instance.get.return_value = mock_response
+        mock_redfish_client_instance.logout.return_value = None
+        mock_redfish_client.return_value = mock_redfish_client_instance
+
+        async with Client(src.common.server.mcp) as client:
+            result = await client.call_tool("get_resource_data", {"url": url})
+            if hasattr(result, "content"):
+                data = json.loads(result.content[0].text) if result.content else {}
+            else:
+                data = result
+
+            headers = data["headers"]
+            # Verify present headers
+            self.assertEqual(headers["Content-Type"], "application/json")
+            self.assertEqual(headers["Allow"], "GET")
+            # Verify optional headers are not present
+            self.assertNotIn("Content-Encoding", headers)
+            self.assertNotIn("ETag", headers)
+            self.assertNotIn("Link", headers)
 
 
 if __name__ == "__main__":

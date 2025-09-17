@@ -28,7 +28,10 @@ async def get_resource_data(url: str) -> dict:
         url (str): The Redfish URL to access the resource.
 
     Returns:
-        data: The data of the resource in JSON format or an error message if the URL is invalid.
+        dict: A JSON document containing:
+            - "headers": Response headers including Allow, Content-Type, Content-Encoding (optional), ETag, and Link
+            - "data": The actual resource data in JSON format
+        Returns an error message if the URL is invalid.
     """
     logger.info(f"Fetching Redfish resource data for URL: {url}")
 
@@ -59,11 +62,12 @@ async def get_resource_data(url: str) -> dict:
     client = None
     try:
         client = RedfishClient(server_cfg, common.config)
-        response = client.get(resource_path)
-        # Ensure we return a dict[Any, Any] as expected by the return type
-        if isinstance(response, dict):
+        response = client.get_with_headers(resource_path)
+        # Ensure we return a properly formatted response
+        if isinstance(response, dict) and "headers" in response and "data" in response:
             return response
-        return {}
+        # Fallback for unexpected response format
+        return {"headers": {}, "data": response if isinstance(response, dict) else {}}
     finally:
         if client:
             client.logout()

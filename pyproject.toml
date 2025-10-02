@@ -35,14 +35,16 @@ dev = [
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
     "mypy>=1.0.0",
-    "ruff>=0.1.0",
+    "ruff>=0.13.2",
     "pre-commit>=3.0.0",
 ]
 test = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
+    "pytest-xdist>=3.0.0",  # For parallel test execution
     "hypothesis>=6.0.0",
+    "requests>=2.25.0",  # For e2e emulator health checks
 ]
 
 [project.scripts]
@@ -51,10 +53,11 @@ mcp-redfish = "src.main:main"
 [dependency-groups]
 dev = [
     "bandit[toml]>=1.8.6",
+    "types-requests>=2.32.4.20250913",
 ]
 
 [tool.pytest.ini_options]
-testpaths = ["test"]
+testpaths = ["test"]  # Default: only unit tests (e2e tests require explicit running)
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
@@ -67,6 +70,12 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "slow: Slow running tests",
+    "e2e: End-to-end integration tests",
+    "tools: Tool-specific tests",
+    "discovery: Tool discovery tests",
+    "error_handling: Error handling and edge case tests",
+    "edge_cases: Edge case and boundary condition tests",
+    "performance: Performance and timing tests",
 ]
 
 [tool.mypy]
@@ -85,7 +94,7 @@ warn_unreachable = false  # Disable unreachable code warnings
 strict_equality = true
 ignore_missing_imports = true  # Ignore missing stubs for external libraries
 # Handle src layout - simplified to avoid duplicate module detection
-files = ["src", "e2e/python"]
+files = ["src", "e2e"]
 exclude = [
     "test/.*",
     ".*/__pycache__/.*"
@@ -94,7 +103,7 @@ exclude = [
 namespace_packages = true
 
 [tool.ruff]
-target-version = "py312"  # Use py312 for pre-commit compatibility
+target-version = "py313"  # Match project Python version
 line-length = 88
 
 [tool.ruff.format]

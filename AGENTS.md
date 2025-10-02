@@ -64,7 +64,7 @@ make inspect
 
 ### Testing
 ```bash
-# Run all tests
+# Run unit tests
 make test
 # OR directly with pytest:
 uv run pytest -v
@@ -170,12 +170,12 @@ The project includes comprehensive e2e testing using the DMTF Redfish Interface 
 
 ```bash
 # Complete e2e test workflow
-make e2e-test
+make e2e
 
 # Individual e2e commands
 make e2e-emulator-setup     # Set up emulator and certificates
 make e2e-emulator-start     # Start Redfish Interface Emulator
-make e2e-test-framework     # Run comprehensive tests with Python framework (recommended)
+make e2e                    # Run comprehensive tests with Python framework (recommended)
 make e2e-emulator-status    # Check emulator status
 make e2e-emulator-logs      # View emulator logs
 make e2e-emulator-stop      # Stop emulator

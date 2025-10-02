@@ -176,7 +176,7 @@ class RedfishClient:
             raise ToolError("Redfish GET request returned None")
 
         # Extract specific headers we're interested in
-        headers = {}
+        headers: dict[str, str | list[str]] = {}
         all_headers = response.getheaders()
 
         # Map of header names to look for (case-insensitive)
@@ -196,13 +196,11 @@ class RedfishClient:
                 if standard_name == "Link":
                     # Handle multiple Link headers
                     if standard_name in headers:
-                        if isinstance(headers[standard_name], list):
-                            headers[standard_name].append(header_value)
+                        existing_value = headers[standard_name]
+                        if isinstance(existing_value, list):
+                            existing_value.append(header_value)
                         else:
-                            headers[standard_name] = [
-                                headers[standard_name],
-                                header_value,
-                            ]
+                            headers[standard_name] = [existing_value, header_value]
                     else:
                         headers[standard_name] = header_value
                 else:

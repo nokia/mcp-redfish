@@ -29,12 +29,9 @@ jobs:
     - name: Update dependencies
       run: |
         uv lock --upgrade
-        uv sync --extra dev --extra test
 
     - name: Run tests to ensure updates don't break anything
-      run: |
-        source .venv/bin/activate
-        uv run pytest -v
+      run: make test
 
     - name: Create Pull Request
       id: create-pr

@@ -23,7 +23,7 @@ CONTAINER_RUNTIME ?= $(shell \
 DOCKER_TAG ?= $(CONTAINER_TAG)
 DOCKER_IMAGE ?= $(CONTAINER_IMAGE)
 
-.PHONY: help install dev install-dev install-test test test-cov lint format format-check type-check security all-checks check pre-commit-install pre-commit-update pre-commit-run run-stdio run-sse run-streamable-http inspect container-build container-test container-run clean ci-test ci-quality ci-security ci-container ci-all e2e-emulator-setup e2e-emulator-start e2e-emulator-stop e2e-test e2e-test-framework e2e-emulator-status e2e-emulator-logs e2e-emulator-clean
+.PHONY: help install dev install-dev install-test test test-unit test-e2e test-all test-cov test-cov-all lint format format-check type-check security all-checks check pre-commit-install pre-commit-update pre-commit-run run-stdio run-sse run-streamable-http inspect container-build container-test container-run clean ci-test ci-quality ci-security ci-container ci-all e2e-emulator-setup e2e-emulator-start e2e-emulator-stop e2e e2e-verbose e2e-cov e2e-emulator-status e2e-emulator-logs e2e-emulator-clean
 
 # Default target
 help: ## Show this help message
@@ -36,8 +36,12 @@ help: ## Show this help message
 	@echo "  install-test Install test dependencies"
 	@echo ""
 	@echo "Quality Assurance:"
-	@echo "  test        Run tests with pytest"
-	@echo "  test-cov    Run tests with coverage"
+	@echo "  test        Run unit tests only (fast, no external dependencies)"
+	@echo "  test-unit   Alias for unit tests"
+	@echo "  test-e2e    Run e2e tests (requires emulator)"
+	@echo "  test-all    Run all tests (unit + e2e)"
+	@echo "  test-cov    Run unit test coverage"
+	@echo "  test-cov-all Run full test coverage (unit + e2e)"
 	@echo "  lint        Run ruff linting"
 	@echo "  format      Format code with ruff"
 	@echo "  type-check  Run mypy type checking"
@@ -66,8 +70,9 @@ help: ## Show this help message
 	@echo "  e2e-emulator-status Check emulator status"
 	@echo "  e2e-emulator-logs  Show emulator logs"
 	@echo "  e2e-emulator-clean Clean up emulator environment"
-	@echo "  e2e-test-framework Run comprehensive tests with Python framework (recommended)"
-	@echo "  e2e-test           Run complete e2e test workflow"
+	@echo "  e2e                Run e2e tests (requires emulator)"
+	@echo "  e2e-verbose        Run e2e tests with verbose output"
+	@echo "  e2e-cov            Run e2e tests with coverage"
 	@echo ""
 	@echo "CI/CD Simulation:"
 	@echo "  ci-test            Run CI/CD test pipeline locally"
@@ -103,28 +108,38 @@ install-test: ## Install test dependencies
 	uv sync --extra test
 
 # Quality assurance targets
-test: install-test ## Run tests with pytest
-	uv run pytest -v
+test: install-test ## Run unit tests only (fast, no external dependencies)
+	uv run pytest -v test/
 
-test-cov: install-test ## Run tests with coverage
-	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70
+test-unit: test ## Alias for unit tests
+
+test-e2e: e2e ## Alias for e2e tests
+
+test-all: install-test e2e-emulator-start ## Run all tests (unit + e2e)
+	uv run pytest -v test/ e2e/
+
+test-cov: install-test ## Run unit test coverage (fast)
+	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70 test/
+
+test-cov-all: install-test e2e-emulator-start ## Run full test coverage (unit + e2e)
+	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70 test/ e2e/
 
 lint: install-dev ## Run ruff linting and import sorting
-	uv run ruff check src/ test/ e2e/python/
+	uv run ruff check src/ test/ e2e/
 
 format: install-dev ## Format code with ruff
-	uv run ruff format src/ test/ e2e/python/
+	uv run ruff format src/ test/ e2e/
 
 format-check: install-dev ## Check code formatting without making changes
-	uv run ruff format --check src/ test/ e2e/python/
+	uv run ruff format --check src/ test/ e2e/
 
 type-check: install-dev ## Run mypy type checking
 	uv run mypy src/
-	cd e2e && uv run mypy python/ --namespace-packages
+	cd e2e && uv run mypy . --namespace-packages
 
 security: install-dev ## Run bandit security scan
-	uv run bandit -r src/ e2e/python/ -f json -o bandit-report.json -q || echo "Security scan completed (check bandit-report.json for details)"
-	uv run bandit -r src/ e2e/python/
+	uv run bandit -r src/ -f json -o bandit-report.json -q || echo "Security scan completed (check bandit-report.json for details)"
+	uv run bandit -r src/
 
 all-checks: lint format-check type-check security test pre-commit-run ## Run all quality checks including pre-commit
 
@@ -182,7 +197,7 @@ clean: ## Clean up generated files and caches
 	rm -rf build/ dist/ *.egg-info/ 2>/dev/null || true
 
 # CI/CD simulation targets
-ci-test: test test-cov ## Run the same tests as CI/CD pipeline
+ci-test: test-all test-cov-all ## Run the same tests as CI/CD pipeline (unit + e2e)
 
 ci-quality: lint format-check type-check pre-commit-run ## Run the same quality checks as CI/CD pipeline
 
@@ -211,17 +226,14 @@ e2e-emulator-status: ## Check emulator status
 e2e-emulator-logs: ## Show emulator logs
 	./e2e/scripts/emulator.sh logs
 
-e2e-test-framework: install e2e-emulator-start ## Run Python-based e2e test framework (recommended)
-	@echo "Running Python e2e test framework..."
-	./e2e/scripts/test-framework.sh
+e2e: install-test e2e-emulator-start ## Run e2e tests
+	uv run pytest -v e2e/
 
-e2e-test: e2e-test-framework ## Run e2e tests with comprehensive Python framework
-	@echo "✅ E2E testing completed using Python framework"
-	@echo "The Python framework provides comprehensive testing including:"
-	@echo "  - Tool discovery and validation"
-	@echo "  - End-to-end tool execution"
-	@echo "  - Error handling verification"
-	@echo "  - Extensible test case architecture"
+e2e-verbose: install-test e2e-emulator-start ## Run e2e tests (verbose output)
+	uv run pytest -vv -s e2e/
+
+e2e-cov: install-test e2e-emulator-start ## Run e2e tests with coverage
+	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing e2e/
 
 e2e-emulator-clean: e2e-emulator-stop ## Clean up emulator environment
 	@echo "Cleaning up emulator environment..."

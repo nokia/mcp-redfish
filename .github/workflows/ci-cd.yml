@@ -26,22 +26,14 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Create virtual environment and install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --extra dev --extra test
+    - name: Install dependencies
+      run: make install-test
 
-    - name: Run tests
-      run: |
-        source .venv/bin/activate
-        uv run pytest -v
+    - name: Run unit tests
+      run: make test
 
-    - name: Run coverage (if possible)
-      run: |
-        source .venv/bin/activate
-        # Try with coverage, continue on failure (e.g., missing SQLite3)
-        uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=70 || echo "Coverage skipped due to environment issues"
+    - name: Run unit test coverage
+      run: make test-cov
       continue-on-error: true
 
     - name: Upload coverage reports to Codecov
@@ -69,27 +61,11 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Create virtual environment and install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --extra dev
+    - name: Install dependencies
+      run: make install-dev
 
-    - name: Run Ruff (Linting & Import Sorting)
-      run: |
-        source .venv/bin/activate
-        uv run ruff check src/ test/ e2e/python/
-
-    - name: Run Ruff (Formatting Check)
-      run: |
-        source .venv/bin/activate
-        uv run ruff format --check src/ test/ e2e/python/
-
-    - name: Run MyPy (Type Checking)
-      run: |
-        source .venv/bin/activate
-        uv run mypy src/ e2e/python/
-      continue-on-error: true  # MyPy might need some work initially
+    - name: Run quality checks
+      run: make ci-quality
 
   security:
     name: Security Scan
@@ -109,15 +85,10 @@ jobs:
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
     - name: Install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --extra dev
+      run: make install-dev
 
-    - name: Run Bandit (Security Linting)
-      run: |
-        source .venv/bin/activate
-        uv run bandit -r src/ e2e/python/ -f json -o bandit-report.json
+    - name: Run security scan
+      run: make ci-security
       continue-on-error: true
 
     - name: Upload Bandit report
@@ -172,12 +143,6 @@ jobs:
         curl -LsSf https://astral.sh/uv/install.sh | sh
         echo "$HOME/.cargo/bin" >> $GITHUB_PATH
 
-    - name: Install dependencies
-      run: |
-        uv venv
-        source .venv/bin/activate
-        uv sync --extra dev
-
     - name: Install Node.js for MCP Inspector
       uses: actions/setup-node@v4
       with:
@@ -188,15 +153,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y curl jq openssl
 
-    - name: Set up e2e environment
-      run: |
-        source .venv/bin/activate
-        make e2e-emulator-setup
-
-    - name: Run e2e tests
-      run: |
-        source .venv/bin/activate
-        make e2e-test-framework
+    - name: Run e2e tests with emulator
+      run: make e2e
 
     - name: Check emulator logs on failure
       if: failure()

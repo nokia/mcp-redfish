@@ -33,8 +33,8 @@ make e2e-emulator-setup
 # Start the Redfish Interface Emulator
 make e2e-emulator-start
 
-# Run all e2e tests
-make e2e-test
+# Complete e2e test workflow
+make e2e
 
 ```
 
@@ -55,25 +55,36 @@ make e2e-clean
 | `e2e-emulator-logs` | Show emulator logs |
 | `e2e-emulator-stop` | Stop emulator |
 | `e2e-emulator-clean` | Clean up certificates and containers |
-| `e2e-test-framework` | Run comprehensive tests using Python framework (recommended) |
-| `e2e-test` | Run the complete e2e test workflow |
+| `e2e` | Run comprehensive e2e tests using pytest (recommended) |
+| `e2e-verbose` | Run e2e tests with verbose output |
+| `e2e-cov` | Run e2e tests with coverage |
 
 ## Testing Modes
 
-### 1. Python Test Framework (Recommended)
+### 1. Pytest-based E2E Tests (Recommended)
 
-Modern, extensible Python-based test framework:
+Modern, pytest-based e2e test framework:
 
 ```bash
-make e2e-test-framework
+make e2e
 ```
 
 **Features:**
-- **Easy Test Case Addition**: Simple class-based test definitions
-- **Rich Response Validation**: JSON schema validation, field assertions, custom validators
-- **Flexible Configuration**: Environment-based setup with programmatic overrides
-- **Clear Reporting**: Detailed test results with structured failure diagnostics
-- **Extensible Architecture**: Easy to add new test scenarios and validations
+- **Pytest Standard**: Industry-standard testing framework with rich ecosystem
+- **Automatic Discovery**: Tests are automatically discovered without manual registration
+- **Rich Fixtures**: Session-scoped fixtures for emulator config and MCP client setup
+- **Flexible Markers**: Test categorization with @pytest.mark decorators
+- **Parallel Execution**: Run tests in parallel with pytest-xdist
+- **Better IDE Integration**: Superior VS Code and PyCharm support
+- **Clear Reporting**: Detailed pytest output with structured failure diagnostics
+
+**Available Test Targets:**
+
+```bash
+make e2e                # Run all e2e tests (default)
+make e2e-verbose        # Run with extra verbosity
+make e2e-cov            # Run with coverage reporting
+```
 
 **Test Cases Include:**
 - Tool discovery validation
@@ -86,10 +97,10 @@ make e2e-test-framework
 
 Basic functionality tests using MCP Inspector CLI directly:
 
-Comprehensive functionality tests using the Python test framework:
+Comprehensive functionality tests using pytest:
 
 ```bash
-make e2e-test-framework
+make e2e
 ```
 
 These tests verify:
@@ -111,11 +122,10 @@ Advanced tests using an AI agent to interact with the MCP server:
 # Set your OpenAI API key
 export OPENAI_API_KEY="your-api-key-here"
 
-Agent-based tests using the comprehensive Python framework:
+Agent-based tests using the pytest framework:
 
 ```bash
-make e2e-test-framework
-```
+make e2e
 ```
 
 These tests verify:
@@ -220,20 +230,18 @@ The Python test framework is organized into modular components for easy extensio
 The e2e framework is now organized into logical directories by file type and purpose:
 
 ```
+```
 e2e/
-├── scripts/                    # Infrastructure management (bash)
-│   ├── emulator.sh            # Docker emulator management
-│   ├── generate-cert.sh       # Certificate generation
-│   └── test-framework.sh      # Python framework integration wrapper
-├── config/                     # Configuration files
-│   └── emulator-config.json   # Emulator configuration
-├── python/                     # Python test framework
-│   ├── framework.py           # Core test framework classes and utilities
-│   ├── test_runner.py         # Test orchestration and suite composition (main entry point)
-│   └── test_cases/            # Organized test case modules:
-│       ├── base_tests.py      # Core functionality tests (tool discovery, server management)
-│       ├── tool_tests.py      # Tool-specific functionality tests (data retrieval, endpoints)
-│       └── error_tests.py     # Error handling and edge case tests
+├── scripts/                           # Infrastructure management (bash)
+│   ├── emulator.sh                   # Docker emulator management
+│   └── generate-cert.sh              # Certificate generation
+├── config/                           # Configuration files
+│   └── emulator-config.json          # Emulator configuration
+├── conftest.py                       # Pytest fixtures and configuration
+├── framework.py                      # MCP test utilities (pytest-compatible)
+├── test_base_functionality.py       # Core functionality tests (discovery, servers)
+└── test_tool_functionality.py       # Tool-specific tests (error handling, advanced features)
+```
 ├── certs/                      # Generated certificates (runtime)
 └── __pycache__/               # Python cache (runtime)
 ```

@@ -14,4 +14,4 @@ RUN uv sync --locked
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
-CMD ["python", "src/main.py"]
+CMD ["uv", "run", "python", "-m", "src.main"]

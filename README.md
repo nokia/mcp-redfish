@@ -348,6 +348,46 @@ To use the Redfish MCP Server with VS Code, you need:
 
 For more information, see the [VS Code documentation](https://code.visualstudio.com/docs/copilot/chat/mcp-servers).
 
+## Integration with mcphost
+
+[mcphost](https://github.com/mark3labs/mcphost) is a command-line host application that manages connections between language models and MCP servers. It acts as the host in the MCP client-server architecture, enabling LLM applications to access external tools, maintain consistent context, and execute commands safely.
+
+mcphost supports a wide range of language models:
+
+- **Anthropic Claude**: Claude 3.5 Sonnet, Claude 3.5 Haiku, and other Claude models
+- **OpenAI**: GPT-4, GPT-4 Turbo, GPT-3.5, and compatible models
+- **Google Gemini**: Gemini 2.0 Flash, Gemini 1.5 Pro, and other Gemini models
+- **Ollama**: Any Ollama-compatible model with function calling support
+- **Custom APIs**: Any OpenAI-compatible API endpoint
+
+### Example Configuration using locally hosted models
+
+Create a configuration file at `~/.config/mcphost/mcp-redfish.yaml`:
+
+```yaml
+mcpServers:
+  redfish:
+    type: local
+    command: ["python3", "-m", "src.main"]
+    environment:
+      REDFISH_HOSTS: "[{\"address\": \"<host1>\", \"username\": \"<user1>\", \"password\": \"<pass1>\"}, {\"address\": \"<host2>\", \"username\": \"<user2>\", \"password\": \"<pass2>\"}]"
+      REDFISH_AUTH_METHOD: "session"
+      MCP_TRANSPORT: "stdio"
+      MCP_REDFISH_LOG_LEVEL: "INFO"
+```
+
+Replace the placeholder values (`<host1>`, `<user1>`, `<pass1>`, etc.) with actual Redfish endpoint details.
+
+### Usage Examples
+
+**Local Models with Ollama:**
+```bash
+# Using Ollama models
+mcphost -m ollama:llama3 --config ~/.config/mcphost/mcp-redfish.yaml
+mcphost -m ollama:mistral --config ~/.config/mcphost/mcp-redfish.yaml
+mcphost -m ollama:qwen3 --config ~/.config/mcphost/mcp-redfish.yaml
+```
+For detailed information and advanced configuration options, visit the [mcphost GitHub repository](https://github.com/mark3labs/mcphost).
 
 ## Testing
 

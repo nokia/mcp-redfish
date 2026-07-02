@@ -7,12 +7,15 @@ import json
 import logging
 import os
 import threading
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _hosts_lock = threading.Lock()
-_static_hosts = None
-_discovered_hosts = []
+HostEntry = dict[str, Any]
+
+_static_hosts: list[HostEntry] | None = None
+_discovered_hosts: list[HostEntry] = []
 
 
 def _load_static_hosts() -> None:
@@ -31,7 +34,7 @@ def _load_static_hosts() -> None:
 _load_static_hosts()
 
 
-def update_discovered_hosts(new_hosts: list[dict]) -> None:
+def update_discovered_hosts(new_hosts: list[HostEntry]) -> None:
     """
     Update the list of discovered hosts in a thread-safe manner.
     Args:
@@ -42,7 +45,7 @@ def update_discovered_hosts(new_hosts: list[dict]) -> None:
         _discovered_hosts = new_hosts
 
 
-def get_hosts() -> list[dict]:
+def get_hosts() -> list[HostEntry]:
     """
     Get the merged list of static and discovered hosts, avoiding duplicates by address.
     Returns:

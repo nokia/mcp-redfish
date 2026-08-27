@@ -2,7 +2,6 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-import json
 import os
 import sys
 import unittest
@@ -18,6 +17,8 @@ from fastmcp import Client
 import src.common.server
 import src.tools  # This ensures tools are registered
 
+from test.utils import extract_call_tool_result
+
 
 class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
     @patch("src.common.hosts.get_hosts")
@@ -25,11 +26,7 @@ class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
         mock_get_hosts.return_value = []
         async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
-            # Handle both direct result and CallToolResult
-            if hasattr(result, "content"):
-                data = json.loads(result.content[0].text) if result.content else []
-            else:
-                data = result
+            data = extract_call_tool_result(result)
             self.assertEqual(len(data), 0)
 
     @patch("src.common.hosts.get_hosts")
@@ -41,13 +38,28 @@ class TestListEndpoints(unittest.IsolatedAsyncioTestCase):
         ]
         async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("list_servers", {})
-            # Handle both direct result and CallToolResult
-            if hasattr(result, "content"):
-                data = json.loads(result.content[0].text) if result.content else []
-            else:
-                data = result
+            data = extract_call_tool_result(result)
             self.assertEqual(len(data), 2)
             self.assertEqual(data, ["host1", "host2"])
+
+    @patch("src.common.hosts.get_discovered_hosts")
+    async def test_list_discovered_servers(self, mock_get_discovered_hosts):
+        mock_get_discovered_hosts.return_value = [
+            {
+                "source_address": "192.168.1.10",
+                "service_root": "https://bmc.example.com:8443/redfish/v1/",
+                "service_host": "bmc.example.com",
+                "service_port": 8443,
+                "scheme": "https",
+            }
+        ]
+        async with Client(src.common.server.mcp) as client:
+            result = await client.call_tool("list_discovered_servers", {})
+            data = extract_call_tool_result(result)
+
+        if isinstance(data, dict):
+            data = [data]
+        self.assertEqual(data, mock_get_discovered_hosts.return_value)
 
 
 if __name__ == "__main__":

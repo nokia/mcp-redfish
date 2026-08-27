@@ -2,7 +2,6 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-import json
 import os
 import sys
 import unittest
@@ -18,6 +17,8 @@ from fastmcp.exceptions import ToolError
 
 import src.common.server
 import src.tools  # This ensures tools are registered
+
+from test.utils import extract_call_tool_result
 
 
 class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
@@ -71,11 +72,7 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
 
         async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("get_resource_data", {"url": url})
-            # Handle both direct result and CallToolResult
-            if hasattr(result, "content"):
-                data = json.loads(result.content[0].text) if result.content else {}
-            else:
-                data = result
+            data = extract_call_tool_result(result)
 
             # Verify the new format with headers and data
             self.assertIn("headers", data)
@@ -115,10 +112,7 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
 
         async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("get_resource_data", {"url": url})
-            if hasattr(result, "content"):
-                data = json.loads(result.content[0].text) if result.content else {}
-            else:
-                data = result
+            data = extract_call_tool_result(result)
 
             # Verify multiple Link headers are handled as array
             headers = data["headers"]
@@ -155,10 +149,7 @@ class TestGetEndpointData(unittest.IsolatedAsyncioTestCase):
 
         async with Client(src.common.server.mcp) as client:
             result = await client.call_tool("get_resource_data", {"url": url})
-            if hasattr(result, "content"):
-                data = json.loads(result.content[0].text) if result.content else {}
-            else:
-                data = result
+            data = extract_call_tool_result(result)
 
             headers = data["headers"]
             # Verify present headers

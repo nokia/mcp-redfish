@@ -48,6 +48,12 @@ class TestHostConfig(unittest.TestCase):
             HostConfig(address="test.example.com", auth_method="invalid")
         self.assertIn("Invalid auth_method", str(context.exception))
 
+    def test_invalid_tls_verify_raises_error(self):
+        """Test that invalid TLS verification setting raises ValueError."""
+        with self.assertRaises(ValueError) as context:
+            HostConfig(address="test.example.com", tls_verify="false")  # type: ignore[arg-type]
+        self.assertIn("tls_verify must be a boolean", str(context.exception))
+
 
 class TestRedfishConfig(unittest.TestCase):
     def test_valid_redfish_config(self):
@@ -57,6 +63,7 @@ class TestRedfishConfig(unittest.TestCase):
         self.assertEqual(len(config.hosts), 1)
         self.assertEqual(config.port, 443)
         self.assertEqual(config.auth_method, "session")
+        self.assertTrue(config.tls_verify)
 
     def test_invalid_port_raises_error(self):
         """Test that invalid port raises ValueError."""
@@ -140,6 +147,10 @@ class TestConfigValidator(unittest.TestCase):
 
         self.assertFalse(ConfigValidator.get_env_bool("NONEXISTENT", False))
 
+        with MockEnvironment({"TEST_BOOL": "invalid"}):
+            with self.assertRaises(ConfigurationError):
+                ConfigValidator.get_env_bool("TEST_BOOL")
+
     def test_get_env_int(self):
         """Test getting integer values from environment."""
         with MockEnvironment({"TEST_INT": "42"}):
@@ -174,8 +185,22 @@ class TestConfigValidator(unittest.TestCase):
             self.assertEqual(len(redfish_config.hosts), 1)
             self.assertEqual(redfish_config.hosts[0].address, "test.example.com")
             self.assertEqual(redfish_config.port, 443)
+            self.assertTrue(redfish_config.tls_verify)
             self.assertEqual(mcp_config.transport, "stdio")
             self.assertEqual(mcp_config.log_level, "INFO")
+
+    def test_load_config_with_tls_verify_disabled(self):
+        """Test explicit TLS verification opt-out."""
+        env_vars = {
+            "REDFISH_HOSTS": '[{"address": "test.example.com", "tls_verify": false}]',
+            "REDFISH_TLS_VERIFY": "false",
+        }
+
+        with MockEnvironment(env_vars):
+            redfish_config, _mcp_config = ConfigValidator.load_config()
+
+            self.assertFalse(redfish_config.tls_verify)
+            self.assertFalse(redfish_config.hosts[0].tls_verify)
 
     def test_load_config_with_invalid_hosts(self):
         """Test configuration loading with invalid hosts."""

@@ -11,6 +11,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
+import certifi
+
 # Patch sys.path to import from src
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src"))
@@ -41,6 +43,8 @@ class TestRedfishClientRetry(unittest.TestCase):
             "port": 443,
             "username": "default_user",
             "password": "default_pass",
+            "tls_verify": True,
+            "tls_server_ca_cert": None,
         }
 
     @patch.dict(
@@ -65,6 +69,95 @@ class TestRedfishClientRetry(unittest.TestCase):
         # Should have called redfish_client twice (tenacity handles the retry)
         self.assertEqual(mock_redfish_client.call_count, 2)
         self.assertEqual(client.client, mock_client)
+
+    @patch("redfish.redfish_client")
+    def test_client_setup_verifies_tls_with_default_ca_bundle(
+        self, mock_redfish_client
+    ):
+        """Test TLS verification uses a default CA bundle unless opted out."""
+        mock_client = MagicMock()
+        mock_redfish_client.return_value = mock_client
+
+        RedfishClient(self.server_cfg, self.common_cfg)
+
+        mock_redfish_client.assert_called_once_with(
+            base_url="https://test-server.example.com:443",
+            username="testuser",
+            password="testpass",
+            default_prefix="/redfish/v1",
+            cafile=certifi.where(),
+        )
+
+    @patch("redfish.redfish_client")
+    def test_client_setup_uses_configured_ca_certificate(self, mock_redfish_client):
+        """Test TLS verification uses the configured CA certificate."""
+        mock_client = MagicMock()
+        mock_redfish_client.return_value = mock_client
+        self.server_cfg["tls_server_ca_cert"] = "/path/to/ca-cert.pem"
+
+        RedfishClient(self.server_cfg, self.common_cfg)
+
+        mock_redfish_client.assert_called_once_with(
+            base_url="https://test-server.example.com:443",
+            username="testuser",
+            password="testpass",
+            default_prefix="/redfish/v1",
+            cafile="/path/to/ca-cert.pem",
+        )
+
+    @patch("redfish.redfish_client")
+    def test_client_setup_allows_explicit_tls_verification_opt_out(
+        self, mock_redfish_client
+    ):
+        """Test explicit TLS verification opt-out leaves cafile unset."""
+        mock_client = MagicMock()
+        mock_redfish_client.return_value = mock_client
+        self.server_cfg["tls_verify"] = False
+
+        with self.assertLogs("src.common.client", level="WARNING") as log_context:
+            RedfishClient(self.server_cfg, self.common_cfg)
+
+        mock_redfish_client.assert_called_once_with(
+            base_url="https://test-server.example.com:443",
+            username="testuser",
+            password="testpass",
+            default_prefix="/redfish/v1",
+            cafile=None,
+        )
+        self.assertIn(
+            "TLS certificate verification is disabled", " ".join(log_context.output)
+        )
+
+    @patch("redfish.redfish_client")
+    def test_client_setup_supports_legacy_verify_cert_opt_out(
+        self, mock_redfish_client
+    ):
+        """Test legacy verify_cert=False still opts out of TLS verification."""
+        mock_client = MagicMock()
+        mock_redfish_client.return_value = mock_client
+        self.server_cfg["verify_cert"] = False
+        del self.common_cfg.REDFISH_CFG["tls_verify"]
+
+        with self.assertLogs("src.common.client", level="WARNING"):
+            RedfishClient(self.server_cfg, self.common_cfg)
+
+        mock_redfish_client.assert_called_once_with(
+            base_url="https://test-server.example.com:443",
+            username="testuser",
+            password="testpass",
+            default_prefix="/redfish/v1",
+            cafile=None,
+        )
+
+    @patch("redfish.redfish_client")
+    def test_client_setup_rejects_invalid_tls_verify(self, mock_redfish_client):
+        """Test raw client config rejects non-boolean tls_verify values."""
+        self.server_cfg["tls_verify"] = "false"
+
+        with self.assertRaises(ValidationError):
+            RedfishClient(self.server_cfg, self.common_cfg)
+
+        mock_redfish_client.assert_not_called()
 
     @patch.dict(
         os.environ, {"REDFISH_MAX_RETRIES": "1", "REDFISH_INITIAL_DELAY": "0.01"}

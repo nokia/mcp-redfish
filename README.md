@@ -15,7 +15,8 @@ The Redfish MCP Server is a **natural language interface** designed for agentic 
 
 This MCP Server provides tools to manage the data of infrastructure via the Redfish API.
 
-- `list_endpoints` to query the Redfish API endpoints that are configured for the MCP Server.
+- `list_servers` to query the Redfish API endpoints that are configured for the MCP Server.
+- `list_discovered_servers` to review Redfish endpoints discovered via SSDP. Discovered endpoints are candidates only and are not managed until explicitly added to `REDFISH_HOSTS`.
 - `get_resource_data` to read the data of a specific resource (e.g. System, EthernetInterface, etc.)
 
 ## Quick Start
@@ -65,7 +66,8 @@ The Redfish MCP Server uses environment variables for configuration. The server 
 | `REDFISH_USERNAME`            | Default username for authentication                       | `""`                       | No       |
 | `REDFISH_PASSWORD`            | Default password for authentication                       | `""`                       | No       |
 | `REDFISH_SERVER_CA_CERT`      | Path to CA certificate for server verification           | `None`                     | No       |
-| `REDFISH_DISCOVERY_ENABLED`   | Enable automatic endpoint discovery                       | `false`                    | No       |
+| `REDFISH_TLS_VERIFY`          | Verify Redfish server TLS certificates                    | `true`                     | No       |
+| `REDFISH_DISCOVERY_ENABLED`   | Enable SSDP discovery of review-only endpoint candidates  | `false`                    | No       |
 | `REDFISH_DISCOVERY_INTERVAL`  | Discovery interval in seconds                             | `30`                       | No       |
 | `MCP_TRANSPORT`               | Transport method: `stdio`, `sse`, or `streamable-http`   | `stdio`                    | No       |
 | `MCP_REDFISH_LOG_LEVEL`       | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `INFO`        | No       |
@@ -82,7 +84,8 @@ The `REDFISH_HOSTS` environment variable accepts a JSON array of endpoint config
     "username": "admin",
     "password": "password123",
     "auth_method": "session",
-    "tls_server_ca_cert": "/path/to/ca-cert.pem"
+    "tls_server_ca_cert": "/path/to/ca-cert.pem",
+    "tls_verify": true
   },
   {
     "address": "192.168.1.101",
@@ -101,6 +104,38 @@ The `REDFISH_HOSTS` environment variable accepts a JSON array of endpoint config
 - `password` (optional): Password (defaults to global `REDFISH_PASSWORD`)
 - `auth_method` (optional): Authentication method (defaults to global `REDFISH_AUTH_METHOD`)
 - `tls_server_ca_cert` (optional): Path to CA certificate (defaults to global `REDFISH_SERVER_CA_CERT`)
+- `tls_verify` (optional): Verify the server TLS certificate (defaults to global `REDFISH_TLS_VERIFY`, which defaults to `true`)
+
+### TLS Certificate Verification
+
+Redfish HTTPS connections verify the server certificate by default. If no custom CA certificate is configured, the server uses its default trusted CA certificate bundle.
+
+For Redfish endpoints that use certificates signed by a private CA, configure the CA bundle globally:
+
+```bash
+REDFISH_SERVER_CA_CERT=/path/to/ca-bundle.pem
+```
+
+or per host:
+
+```json
+[
+  {
+    "address": "bmc.example.com",
+    "tls_server_ca_cert": "/path/to/ca-bundle.pem"
+  }
+]
+```
+
+When a custom CA file is configured, it is used as the trust bundle for that connection. It replaces the default trusted CA certificate bundle. Ensure the certificate hostname or IP address matches the configured `address` value.
+
+For lab or troubleshooting environments, TLS certificate verification can be explicitly disabled globally with `REDFISH_TLS_VERIFY=false` or per host with `"tls_verify": false`. Disabling verification keeps the HTTPS connection encrypted, but the server identity is not authenticated. Use this only when you explicitly trust the network and endpoint.
+
+### Discovery and Trust
+
+SSDP discovery is disabled by default. When enabled, discovered Redfish endpoints are treated as review-only candidates. They are returned by `list_discovered_servers` with both the SSDP packet source address and the advertised Redfish service-root URI, including parsed host, port, and scheme details.
+
+Discovered candidates are not returned by `list_servers` and are not used by `get_resource_data`. To manage a discovered endpoint or send credentials to it, explicitly add the trusted endpoint to `REDFISH_HOSTS`.
 
 ### Configuration Methods
 
@@ -124,6 +159,7 @@ There are several ways to set environment variables:
    REDFISH_AUTH_METHOD=session
    REDFISH_USERNAME=default_user
    REDFISH_PASSWORD=default_pass
+  REDFISH_TLS_VERIFY=true
 
    # MCP configuration
    MCP_TRANSPORT=stdio

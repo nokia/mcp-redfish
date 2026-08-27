@@ -36,7 +36,8 @@ class SSDPDiscovery:
         """
         Send SSDP M-SEARCH and collect valid Redfish endpoints from AL header.
         Returns:
-            list[dict]: List of discovered hosts with address and service_root.
+            list[dict]: List of discovered host candidates with source address
+                and service root details.
         """
         message = (
             "M-SEARCH * HTTP/1.1\r\n"
@@ -60,7 +61,7 @@ class SSDPDiscovery:
                         al_uri = self._parse_al(response)
                         if al_uri and self._is_valid_service_root(al_uri):
                             self.found_hosts.append(
-                                {"address": addr[0], "service_root": al_uri}
+                                self._build_discovered_host(addr[0], al_uri)
                             )
                             logger.info(
                                 f"Discovered Redfish endpoint: {addr[0]} {al_uri}"
@@ -104,6 +105,17 @@ class SSDPDiscovery:
             logger.debug(f"Service root URI rejected (invalid path): {uri}")
             return False
         return True
+
+    def _build_discovered_host(self, source_address: str, uri: str) -> dict:
+        """Build a review-only discovered host candidate."""
+        parsed = urllib.parse.urlparse(uri)
+        return {
+            "source_address": source_address,
+            "service_root": uri,
+            "service_host": parsed.hostname,
+            "service_port": parsed.port or 443,
+            "scheme": parsed.scheme,
+        }
 
     def _parse_al(self, response: str) -> str | None:
         """

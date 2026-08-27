@@ -37,11 +37,13 @@ def emulator_config() -> dict[str, str]:
 @pytest.fixture(scope="session")
 def mcp_server_env(emulator_config: dict[str, str]) -> dict[str, str]:
     """Provide MCP server environment configuration."""
+    emulator_ca_cert = Path(__file__).parent / "certs" / "server.crt"
     return {
         "REDFISH_HOSTS": f'[{{"address": "{emulator_config["host"]}", "port": {emulator_config["port"]}}}]',
         "REDFISH_USERNAME": "",
         "REDFISH_PASSWORD": "",
         "REDFISH_AUTH_METHOD": "basic",
+        "REDFISH_SERVER_CA_CERT": str(emulator_ca_cert),
         "MCP_TRANSPORT": "stdio",
         "MCP_REDFISH_LOG_LEVEL": "WARNING",  # Reduce log noise in e2e tests
     }
@@ -82,7 +84,7 @@ def tool_validator():
 @pytest.fixture
 def expected_tools() -> list[str]:
     """List of tools that should be available in the MCP server."""
-    return ["list_servers", "get_resource_data"]
+    return ["list_servers", "list_discovered_servers", "get_resource_data"]
 
 
 # Pytest markers for e2e tests

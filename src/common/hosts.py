@@ -47,14 +47,25 @@ def update_discovered_hosts(new_hosts: list[HostEntry]) -> None:
 
 def get_hosts() -> list[HostEntry]:
     """
-    Get the merged list of static and discovered hosts, avoiding duplicates by address.
+    Get the configured Redfish hosts.
+
+    Discovered hosts are intentionally excluded until explicitly added to
+    REDFISH_HOSTS by the user.
     Returns:
         list[dict]: List of host dictionaries.
     """
     with _hosts_lock:
-        # Static hosts take precedence over discovered hosts
-        all_hosts = {h["address"]: h for h in (_static_hosts or [])}
-        for h in _discovered_hosts:
-            if h["address"] not in all_hosts:
-                all_hosts[h["address"]] = h
-        return list(all_hosts.values())
+        return list(_static_hosts or [])
+
+
+def get_discovered_hosts() -> list[HostEntry]:
+    """
+    Get discovered Redfish host candidates.
+
+    These hosts are informational only and are not managed unless explicitly
+    added to REDFISH_HOSTS by the user.
+    Returns:
+        list[dict]: List of discovered host candidate dictionaries.
+    """
+    with _hosts_lock:
+        return list(_discovered_hosts)

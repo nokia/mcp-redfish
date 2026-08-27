@@ -20,6 +20,13 @@ CERT_SUBJECT="${CERT_SUBJECT:-/C=US/ST=State/L=City/O=Organization/OU=Unit/CN=lo
 # Create certificate directory
 mkdir -p "${CERT_DIR}"
 
+if [[ -f "${CERT_KEY}" && -f "${CERT_CRT}" ]]; then
+    echo "✓ Existing certificate found:"
+    echo "  Private key: ${CERT_KEY}"
+    echo "  Certificate: ${CERT_CRT}"
+    exit 0
+fi
+
 echo "Generating self-signed X509 certificate for Redfish Interface Emulator..."
 echo "Certificate will be valid for ${CERT_DAYS} days"
 echo "Subject: ${CERT_SUBJECT}"

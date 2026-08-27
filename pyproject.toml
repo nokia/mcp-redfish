@@ -18,6 +18,7 @@ requires-python = ">=3.13"
 keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
     "redfish",
+    "certifi",
     "python-dotenv",
     "fastmcp",
     "tenacity>=8.0.0"
@@ -39,6 +40,7 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 test = [
+    "cryptography>=50.0.0",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",

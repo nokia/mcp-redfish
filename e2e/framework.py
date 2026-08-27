@@ -61,14 +61,20 @@ class MCPTestClient:
                 "--cli",
                 "--transport",
                 "stdio",
-                "--method",
-                "tools/call",
-                "--tool-name",
-                tool_name,
             ] + self.server_command
 
+            cmd.extend(
+                [
+                    "--method",
+                    "tools/call",
+                    "--tool-name",
+                    tool_name,
+                ]
+            )
+
             if arguments:
-                cmd.extend(["--arguments", json.dumps(arguments)])
+                for key, value in arguments.items():
+                    cmd.extend(["--tool-arg", f"{key}={value}"])
 
             # Execute command
             result = subprocess.run(
@@ -150,9 +156,14 @@ class MCPTestClient:
                 "--cli",
                 "--transport",
                 "stdio",
-                "--method",
-                "tools/list",
             ] + self.server_command
+
+            cmd.extend(
+                [
+                    "--method",
+                    "tools/list",
+                ]
+            )
 
             # Execute command
             result = subprocess.run(

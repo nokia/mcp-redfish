@@ -40,9 +40,14 @@ def extract_call_tool_result(result) -> Any:
     This helper handles the different ways MCP tools can return data
     depending on the test context.
     """
-    if hasattr(result, "content") and result.content:
+    if hasattr(result, "data"):
+        return result.data
+    elif hasattr(result, "content") and result.content:
         # Handle CallToolResult with TextContent
         return json.loads(result.content[0].text)
+    elif isinstance(result, list) and result and hasattr(result[0], "text"):
+        # Handle direct TextContent list
+        return json.loads(result[0].text)
     else:
         # Handle direct result
         return result

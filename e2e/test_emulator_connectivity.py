@@ -32,34 +32,23 @@ def test_emulator_connectivity_via_tools(mcp_client: MCPTestClient, emulator_con
 
     result = mcp_client.call_tool("get_resource_data", {"url": service_root_url})
 
-    # For now, let's just verify the tool responds (even with validation errors)
-    # This confirms the emulator connectivity check is working
     assert isinstance(result, ToolCallResult), "Should return a ToolCallResult object"
+    assert_tool_call_success(
+        result, "get_resource_data should succeed with the configured emulator CA"
+    )
+    assert_tool_has_content(result, "Should return actual Redfish service root data")
 
-    # If the tool succeeds, verify we get real Redfish data
-    if result.success:
-        assert_tool_has_content(
-            result, "Should return actual Redfish service root data"
-        )
+    content_str = str(result.content).lower()
+    redfish_indicators = ["redfish", "version", "systems", "chassis", "managers"]
+    found_indicators = [
+        indicator for indicator in redfish_indicators if indicator in content_str
+    ]
 
-        # Verify we got real Redfish data, not just configuration
-        content_str = str(result.content).lower()
-
-        # Real Redfish service root should contain these standard fields
-        redfish_indicators = ["redfish", "version", "systems", "chassis", "managers"]
-
-        found_indicators = [
-            indicator for indicator in redfish_indicators if indicator in content_str
-        ]
-
-        assert len(found_indicators) >= 2, (
-            f"Response should contain real Redfish service root data with standard fields. "
-            f"Found {len(found_indicators)} of {len(redfish_indicators)} expected indicators: {found_indicators}. "
-            f"Content: {result.content}"
-        )
-    else:
-        # If it fails, at least verify it's attempting to validate/connect
-        assert result.error_message, "Failed tool call should provide error message"
+    assert len(found_indicators) >= 2, (
+        f"Response should contain real Redfish service root data with standard fields. "
+        f"Found {len(found_indicators)} of {len(redfish_indicators)} expected indicators: {found_indicators}. "
+        f"Content: {result.content}"
+    )
 
 
 @pytest.mark.e2e

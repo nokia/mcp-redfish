@@ -43,6 +43,7 @@ try:
                 "password": host.password,
                 "auth_method": host.auth_method,
                 "tls_server_ca_cert": host.tls_server_ca_cert,
+                "tls_verify": host.tls_verify,
             }
             for host in REDFISH_CONFIG.hosts
         ],
@@ -51,6 +52,7 @@ try:
         "username": REDFISH_CONFIG.username,
         "password": REDFISH_CONFIG.password,
         "tls_server_ca_cert": REDFISH_CONFIG.tls_server_ca_cert,
+        "tls_verify": REDFISH_CONFIG.tls_verify,
     }
 
     # Legacy compatibility - maintain the old MCP_TRANSPORT variable
@@ -87,6 +89,17 @@ except ConfigurationError as e:
         hosts = [{"address": "127.0.0.1"}]
 
     # Reassign variables for legacy fallback
+    tls_verify_value = os.getenv("REDFISH_TLS_VERIFY", "true").lower()
+    if tls_verify_value in ("true", "1", "yes", "on"):
+        tls_verify = True
+    elif tls_verify_value in ("false", "0", "no", "off"):
+        tls_verify = False
+    else:
+        logger.error(
+            "Invalid REDFISH_TLS_VERIFY value in legacy fallback; defaulting to certificate verification enabled"
+        )
+        tls_verify = True
+
     MCP_TRANSPORT = os.getenv("MCP_TRANSPORT", "stdio")  # type: ignore[assignment]
     REDFISH_CFG = {
         "hosts": hosts,
@@ -95,6 +108,7 @@ except ConfigurationError as e:
         "username": os.getenv("REDFISH_USERNAME", ""),
         "password": os.getenv("REDFISH_PASSWORD", ""),
         "tls_server_ca_cert": os.getenv("REDFISH_SERVER_CA_CERT", None),
+        "tls_verify": tls_verify,
     }
 
     # Reset config objects for compatibility

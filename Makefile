@@ -141,7 +141,13 @@ security: install-dev ## Run bandit security scan
 	uv run bandit -r src/ -f json -o bandit-report.json -q || echo "Security scan completed (check bandit-report.json for details)"
 	uv run bandit -r src/
 
-all-checks: lint format-check type-check security test pre-commit-run ## Run all quality checks including pre-commit
+all-checks: ## Run all quality checks including pre-commit
+	$(MAKE) lint
+	$(MAKE) format-check
+	$(MAKE) type-check
+	$(MAKE) security
+	$(MAKE) pre-commit-run
+	$(MAKE) test
 
 check: lint test ## Quick check: linting and tests only
 

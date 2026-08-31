@@ -191,6 +191,7 @@ export REDFISH_HOSTS='[{"address": "127.0.0.1", "port": 5000}]'
 export REDFISH_USERNAME=""
 export REDFISH_PASSWORD=""
 export REDFISH_AUTH_METHOD="basic"
+export REDFISH_SERVER_CA_CERT="e2e/certs/server.crt"
 
 # Test with MCP Inspector (interactive UI)
 npx @modelcontextprotocol/inspector uv run python -m src.main

@@ -41,19 +41,31 @@ except ImportError:
 
     class st:
         @staticmethod
-        def text():
+        def text(*args, **kwargs):
             return lambda: "test"
 
         @staticmethod
-        def integers():
+        def integers(*args, **kwargs):
             return lambda: 42
 
         @staticmethod
-        def dictionaries(keys, values):
+        def floats(*args, **kwargs):
+            return lambda: 1.0
+
+        @staticmethod
+        def dictionaries(keys, values, *args, **kwargs):
             return lambda: {}
 
+        @staticmethod
+        def lists(elements, *args, **kwargs):
+            return lambda: []
 
-from src.common.validation import ConfigValidator
+    class HealthCheck:
+        function_scoped_fixture = "function_scoped_fixture"
+        filter_too_much = "filter_too_much"
+
+
+from src.common.validation import ConfigurationError, ConfigValidator
 
 
 @unittest.skipUnless(hypothesis_available, "Hypothesis library not available")
@@ -260,8 +272,11 @@ class TestPropertyBasedValidation(unittest.TestCase):
                 bool_result = self.validator.get_env_bool(var_name, default=False)
                 self.assertIsInstance(bool_result, bool)
 
+            except ConfigurationError:
+                # Invalid boolean strings should be rejected gracefully.
+                pass
             except Exception as e:
-                # Environment variable processing should be robust
+                # Environment variable processing should not fail unexpectedly.
                 self.fail(
                     f"Environment variable processing failed for {var_name}={var_value}: {e}"
                 )

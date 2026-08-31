@@ -6,6 +6,7 @@ import logging
 import os
 from typing import Any
 
+import certifi
 import redfish
 from fastmcp.exceptions import ToolError, ValidationError
 from redfish.rest.v1 import AuthMethod
@@ -21,6 +22,33 @@ from tenacity import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _get_config_value(
+    server_cfg: dict[str, Any], common_cfg: Any, key: str, default: Any = None
+) -> Any:
+    value = server_cfg.get(key)
+    if value is not None:
+        return value
+    return common_cfg.REDFISH_CFG.get(key, default)
+
+
+def _get_tls_verify(server_cfg: dict[str, Any], common_cfg: Any) -> bool:
+    for key in ("tls_verify", "verify_cert"):
+        value = server_cfg.get(key)
+        if value is not None:
+            if not isinstance(value, bool):
+                raise ValidationError("tls_verify must be a boolean")
+            return value
+
+    for key in ("tls_verify", "verify_cert"):
+        value = common_cfg.REDFISH_CFG.get(key)
+        if value is not None:
+            if not isinstance(value, bool):
+                raise ValidationError("tls_verify must be a boolean")
+            return value
+
+    return True
 
 
 def get_retry_configuration():
@@ -110,6 +138,22 @@ class RedfishClient:
         )
         base_url = f"https://{self.server_cfg.get('address')}:{port}"
 
+        tls_verify = _get_tls_verify(self.server_cfg, self.common_cfg)
+
+        ca_cert = None
+        if tls_verify:
+            ca_cert = (
+                _get_config_value(
+                    self.server_cfg, self.common_cfg, "tls_server_ca_cert", None
+                )
+                or certifi.where()
+            )
+        else:
+            logger.warning(
+                "TLS certificate verification is disabled for Redfish server %s",
+                self.server_cfg.get("address"),
+            )
+
         logger.info(f"Setting up Redfish client for {base_url}")
 
         try:
@@ -118,13 +162,8 @@ class RedfishClient:
                 username=username,
                 password=password,
                 default_prefix="/redfish/v1",
+                cafile=ca_cert,
             )
-
-            ca_cert = self.server_cfg.get(
-                "tls_server_ca_cert"
-            ) or self.common_cfg.REDFISH_CFG.get("tls_server_ca_cert")
-            if ca_cert:
-                client.cafile = ca_cert
 
             client.login(auth=auth_method)
             self.client = client

@@ -266,39 +266,41 @@ class TestComplexErrorScenarios(unittest.TestCase):
         """Test handling of concurrent request conflicts."""
         results = queue.Queue()
         errors = queue.Queue()
+        call_count = 0
+        call_count_lock = threading.Lock()
+
+        def create_mock_client(*args, **kwargs):
+            nonlocal call_count
+            with call_count_lock:
+                call_count += 1
+                current_call = call_count
+
+            if current_call % 2:
+                mock_client = MagicMock()
+                mock_response = MagicMock()
+                mock_response.dict = {"worker": current_call, "status": "success"}
+                mock_client.get.return_value = mock_response
+                return mock_client
+
+            raise ConnectionError("Connection reset")
 
         def worker(worker_id):
             try:
-                with patch("redfish.redfish_client") as mock_redfish_client:
-                    # Simulate different response times to create race conditions
-                    mock_client = MagicMock()
-                    if worker_id % 2 == 0:
-                        # Some requests succeed
-                        mock_redfish_client.return_value = mock_client
-                        mock_response = MagicMock()
-                        mock_response.dict = {"worker": worker_id, "status": "success"}
-                        mock_client.get.return_value = mock_response
-                    else:
-                        # Some requests fail with connection errors
-                        mock_redfish_client.side_effect = ConnectionError(
-                            "Connection reset"
-                        )
-
-                    client = RedfishClient(self.server_cfg, self.common_cfg)
-                    if worker_id % 2 == 0:
-                        result = client.get("/redfish/v1/Systems")
-                        results.put((worker_id, result))
+                client = RedfishClient(self.server_cfg, self.common_cfg)
+                result = client.get("/redfish/v1/Systems")
+                results.put((worker_id, result))
 
             except Exception as e:
                 errors.put((worker_id, e))
 
-        # Start multiple concurrent workers
-        threads = [threading.Thread(target=worker, args=(i,)) for i in range(4)]
-        for thread in threads:
-            thread.start()
+        with patch("redfish.redfish_client", side_effect=create_mock_client):
+            # Start multiple concurrent workers
+            threads = [threading.Thread(target=worker, args=(i,)) for i in range(4)]
+            for thread in threads:
+                thread.start()
 
-        for thread in threads:
-            thread.join(timeout=5)
+            for thread in threads:
+                thread.join(timeout=5)
 
         # Some should succeed, some should fail - both are valid outcomes
         # Main thing is no deadlocks or crashes

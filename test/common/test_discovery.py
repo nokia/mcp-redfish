@@ -160,8 +160,11 @@ class TestSSDPDiscovery(unittest.TestCase):
 
         # Should have found one host
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["address"], "192.168.1.100")
+        self.assertEqual(result[0]["source_address"], "192.168.1.100")
         self.assertEqual(result[0]["service_root"], "https://192.168.1.100/redfish/v1/")
+        self.assertEqual(result[0]["service_host"], "192.168.1.100")
+        self.assertEqual(result[0]["service_port"], 443)
+        self.assertEqual(result[0]["scheme"], "https")
 
         # Should have called update function
         mock_update.assert_called_once_with(result)
@@ -200,7 +203,8 @@ class TestSSDPDiscovery(unittest.TestCase):
 
         # Should have found only the valid host
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["address"], "192.168.1.101")
+        self.assertEqual(result[0]["source_address"], "192.168.1.101")
+        self.assertEqual(result[0]["service_host"], "192.168.1.101")
 
     @patch("socket.socket")
     def test_discovery_no_al_header(self, mock_socket):
@@ -264,7 +268,21 @@ class TestSSDPDiscovery(unittest.TestCase):
 
         # Should still return the discovered hosts even if update fails
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["address"], "192.168.1.100")
+        self.assertEqual(result[0]["source_address"], "192.168.1.100")
+
+    def test_build_discovered_host_includes_source_and_service_identity(self):
+        """Test discovered candidates expose both packet source and service URI."""
+        result = self.discovery._build_discovered_host(
+            "192.168.1.10", "https://bmc.example.com:8443/redfish/v1/"
+        )
+
+        self.assertEqual(result["source_address"], "192.168.1.10")
+        self.assertEqual(
+            result["service_root"], "https://bmc.example.com:8443/redfish/v1/"
+        )
+        self.assertEqual(result["service_host"], "bmc.example.com")
+        self.assertEqual(result["service_port"], 8443)
+        self.assertEqual(result["scheme"], "https")
 
     def test_discovery_multiple_responses_same_host(self):
         """Test discovery with multiple responses from the same host."""

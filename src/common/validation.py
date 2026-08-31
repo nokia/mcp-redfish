@@ -32,6 +32,7 @@ class HostConfig:
     password: str | None = None
     auth_method: str | None = None
     tls_server_ca_cert: str | None = None
+    tls_verify: bool | None = None
 
     def __post_init__(self) -> None:
         """Validate host configuration after initialization."""
@@ -49,6 +50,9 @@ class HostConfig:
                 f"Invalid auth_method: {self.auth_method}. Must be one of: {AuthMethod.BASIC}, {AuthMethod.SESSION}"
             )
 
+        if self.tls_verify is not None and not isinstance(self.tls_verify, bool):
+            raise ValueError("tls_verify must be a boolean")
+
 
 @dataclass
 class RedfishConfig:
@@ -60,6 +64,7 @@ class RedfishConfig:
     username: str = ""
     password: str = ""
     tls_server_ca_cert: str | None = None
+    tls_verify: bool = True
     discovery_enabled: bool = False
     discovery_interval: int = 30
 
@@ -72,6 +77,9 @@ class RedfishConfig:
             raise ValueError(
                 f"Invalid auth_method: {self.auth_method}. Must be one of: {AuthMethod.BASIC}, {AuthMethod.SESSION}"
             )
+
+        if not isinstance(self.tls_verify, bool):
+            raise ValueError("tls_verify must be a boolean")
 
         if self.discovery_interval < 1:
             raise ValueError(
@@ -143,8 +151,16 @@ class ConfigValidator:
     @staticmethod
     def get_env_bool(key: str, default: bool = False) -> bool:
         """Get boolean value from environment variable."""
-        value = os.getenv(key, str(default)).lower()
-        return value in ("true", "1", "yes", "on")
+        value = os.getenv(key)
+        if value is None:
+            return default
+
+        normalized = value.lower()
+        if normalized in ("true", "1", "yes", "on"):
+            return True
+        if normalized in ("false", "0", "no", "off"):
+            return False
+        raise ConfigurationError(f"Environment variable {key} must be a boolean value")
 
     @staticmethod
     def get_env_int(
@@ -186,6 +202,7 @@ class ConfigValidator:
                 username=os.getenv("REDFISH_USERNAME", ""),
                 password=os.getenv("REDFISH_PASSWORD", ""),
                 tls_server_ca_cert=os.getenv("REDFISH_SERVER_CA_CERT"),
+                tls_verify=cls.get_env_bool("REDFISH_TLS_VERIFY", True),
                 discovery_enabled=cls.get_env_bool("REDFISH_DISCOVERY_ENABLED", False),
                 discovery_interval=cls.get_env_int("REDFISH_DISCOVERY_INTERVAL", 30, 1),
             )

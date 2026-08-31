@@ -1,0 +1,6 @@
+# MCP Inspector CLI version policy for e2e tests and `make inspect`.
+# The exact version is pinned in inspector-version.lock.
+# Minor and patch updates are applied by the weekly dependency-updates workflow.
+package = "@modelcontextprotocol/inspector"
+# Allow minor/patch updates within major version 2; major bumps require manual review.
+constraint = ">=2.4.0,<3"

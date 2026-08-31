@@ -18,6 +18,51 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from e2e.inspector_version import load_inspector_package_spec
+
+_INSPECTOR_ENV_EXCLUDED_PREFIXES = ("VSCODE_", "__CURSOR_", "npm_config_")
+
+
+def _inspector_subprocess_env() -> dict[str, str]:
+    """Environment for npx; excludes IDE/npm vars that can break Inspector."""
+    return {
+        key: value
+        for key, value in os.environ.items()
+        if not any(
+            key.startswith(prefix) for prefix in _INSPECTOR_ENV_EXCLUDED_PREFIXES
+        )
+    }
+
+
+def build_inspector_command(
+    server_command: list[str],
+    server_env: dict[str, str],
+    inspector_options: list[str],
+) -> list[str]:
+    """Build an MCP Inspector v2 CLI command."""
+    env_flags: list[str] = []
+    for key, value in server_env.items():
+        if value == "":
+            continue
+        env_flags.extend(["-e", f"{key}={value}"])
+
+    return [
+        "npx",
+        load_inspector_package_spec(),
+        "--cli",
+        *server_command,
+        "--",
+        *env_flags,
+        *inspector_options,
+    ]
+
+
+def _unwrap_inspector_payload(parsed: Any) -> Any:
+    """Return the MCP payload from Inspector v2 JSON output."""
+    if isinstance(parsed, dict) and "result" in parsed:
+        return parsed["result"]
+    return parsed
+
 
 @dataclass
 class ToolCallResult:
@@ -50,35 +95,30 @@ class MCPTestClient:
     ) -> ToolCallResult:
         """Call a tool via MCP Inspector CLI."""
         try:
-            # Prepare environment
-            full_env = os.environ.copy()
-            full_env.update(self.env)
-
-            # Build inspector command
-            cmd = [
-                "npx",
-                "@modelcontextprotocol/inspector",
-                "--cli",
-                "--transport",
-                "stdio",
-            ] + self.server_command
-
-            cmd.extend(
-                [
-                    "--method",
-                    "tools/call",
-                    "--tool-name",
-                    tool_name,
-                ]
-            )
+            inspector_options = [
+                "--format",
+                "json",
+                "--method",
+                "tools/call",
+                "--tool-name",
+                tool_name,
+            ]
 
             if arguments:
                 for key, value in arguments.items():
-                    cmd.extend(["--tool-arg", f"{key}={value}"])
+                    inspector_options.extend(["--tool-arg", f"{key}={value}"])
+
+            cmd = build_inspector_command(
+                self.server_command, self.env, inspector_options
+            )
 
             # Execute command
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30, env=full_env
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=_inspector_subprocess_env(),
             )
 
             # Parse output
@@ -89,8 +129,7 @@ class MCPTestClient:
 
             if result.stdout:
                 try:
-                    # Try to parse as JSON
-                    parsed = json.loads(result.stdout)
+                    parsed = _unwrap_inspector_payload(json.loads(result.stdout))
                     if isinstance(parsed, list):
                         content = parsed
                     else:
@@ -145,36 +184,26 @@ class MCPTestClient:
     def list_tools(self) -> ToolCallResult:
         """List available tools via MCP Inspector CLI."""
         try:
-            # Prepare environment
-            full_env = os.environ.copy()
-            full_env.update(self.env)
-
-            # Build inspector command
-            cmd = [
-                "npx",
-                "@modelcontextprotocol/inspector",
-                "--cli",
-                "--transport",
-                "stdio",
-            ] + self.server_command
-
-            cmd.extend(
-                [
-                    "--method",
-                    "tools/list",
-                ]
+            cmd = build_inspector_command(
+                self.server_command,
+                self.env,
+                ["--format", "json", "--method", "tools/list"],
             )
 
             # Execute command
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30, env=full_env
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env=_inspector_subprocess_env(),
             )
 
             # Parse tools list
             tools = []
             if result.stdout:
                 try:
-                    parsed = json.loads(result.stdout)
+                    parsed = _unwrap_inspector_payload(json.loads(result.stdout))
                     if isinstance(parsed, dict) and "tools" in parsed:
                         tools = parsed["tools"]
                     elif isinstance(parsed, list):

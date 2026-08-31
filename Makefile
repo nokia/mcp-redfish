@@ -171,7 +171,7 @@ run-streamable-http: install ## Run MCP server with streamable-http transport
 	MCP_TRANSPORT=streamable-http uv run python -m src.main
 
 inspect: install ## Run MCP Inspector for debugging
-	npx @modelcontextprotocol/inspector uv run python -m src.main
+	npx $$(uv run python -c "from e2e.inspector_version import load_inspector_package_spec; print(load_inspector_package_spec())") uv run python -m src.main
 
 # Container targets (generic - works with Docker or Podman)
 container-build: ## Build container image (set HTTP_PROXY/HTTPS_PROXY env vars for proxy support)

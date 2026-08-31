@@ -1,0 +1,7 @@
+## MCP Inspector major-version indicator
+
+A newer **major** MCP Inspector release is available on npm. Minor and patch updates are handled automatically within `e2e/inspector-version.toml`; major bumps require manual review of the Inspector migration guide and e2e CLI usage.
+
+| Package | Locked | Latest |
+| --- | --- | --- |
+| `@modelcontextprotocol/inspector` | `2.4.0` | `3.0.0` |

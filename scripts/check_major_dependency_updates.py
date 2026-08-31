@@ -7,9 +7,9 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
-import sys
 import tomllib
 import urllib.error
 import urllib.request
@@ -58,7 +58,17 @@ def load_locked_versions() -> dict[str, str]:
     return {package["name"]: package["version"] for package in data["package"]}
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Report direct runtime dependencies with newer major versions."
+    )
+    parser.add_argument(
+        "--summary-file",
+        type=Path,
+        help="Optional path for a GitHub Actions job summary markdown file.",
+    )
+    args = parser.parse_args(argv)
+
     locked_versions = load_locked_versions()
     outdated: list[tuple[str, str, str, int, int]] = []
 
@@ -97,8 +107,7 @@ def main() -> int:
             f"{locked} -> {latest}"
         )
 
-    summary_path = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    if summary_path is not None:
+    if args.summary_file is not None:
         lines = [
             "## Major-version availability indicator",
             "",
@@ -111,7 +120,7 @@ def main() -> int:
         ]
         for package, locked, latest, _, _ in outdated:
             lines.append(f"| `{package}` | `{locked}` | `{latest}` |")
-        summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        args.summary_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     return 1
 

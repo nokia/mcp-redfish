@@ -60,7 +60,33 @@ class TestCheckInspectorVersionScript(unittest.TestCase):
     def test_check_major_reports_new_major(self, _load_config, _latest_version) -> None:
         import check_inspector_version
 
-        self.assertEqual(check_inspector_version.main(), 1)
+        self.assertEqual(check_inspector_version.main([]), 1)
+        self.assertFalse(Path("-v").exists())
+
+    @patch("check_inspector_version.latest_version_on_npm", return_value="3.0.0")
+    @patch(
+        "check_inspector_version.load_inspector_version_config",
+        return_value=InspectorVersionConfig(
+            package="@modelcontextprotocol/inspector",
+            constraint=">=2.4.0,<3",
+            locked_version="2.4.0",
+        ),
+    )
+    def test_check_major_writes_summary_file(
+        self, _load_config, _latest_version
+    ) -> None:
+        import check_inspector_version
+
+        summary = Path(self.id().replace(".", "_") + ".md")
+        try:
+            self.assertEqual(
+                check_inspector_version.main(["--summary-file", str(summary)]),
+                1,
+            )
+            self.assertTrue(summary.is_file())
+            self.assertIn("major-version indicator", summary.read_text())
+        finally:
+            summary.unlink(missing_ok=True)
 
 
 class TestUpdateInspectorVersionScript(unittest.TestCase):

@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 import urllib.error
 from pathlib import Path
@@ -21,7 +22,17 @@ from e2e.inspector_version import (  # noqa: E402
 )
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Report when a newer major MCP Inspector release is on npm."
+    )
+    parser.add_argument(
+        "--summary-file",
+        type=Path,
+        help="Optional path for a GitHub Actions job summary markdown file.",
+    )
+    args = parser.parse_args(argv)
+
     config = load_inspector_version_config()
 
     try:
@@ -50,9 +61,8 @@ def main() -> int:
         f"{config.locked_version} -> {latest_version}"
     )
 
-    summary_path = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-    if summary_path is not None:
-        summary_path.write_text(
+    if args.summary_file is not None:
+        args.summary_file.write_text(
             "\n".join(
                 [
                     "## MCP Inspector major-version indicator",

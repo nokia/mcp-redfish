@@ -271,10 +271,11 @@ make lint format type-check security test
 ```
 
 ### CI/CD Pipeline
-- **Triggers**: Push to main/develop/fixes, PRs to main/develop
+- **Triggers**: Pull requests to `main` (see `.github/workflows/ci-cd.yml`)
 - **Python versions**: 3.13 and 3.14 in CI (3.14 primary for quality, containers, and dependency automation)
-- **Checks**: Tests, coverage, quality, security, Docker build
+- **Checks**: Tests, coverage, quality, security, Docker build, e2e
 - **Reports**: Coverage uploaded to Codecov
+- **Branch protection**: Required checks for `main` are documented in [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md)
 
 ### Dependency Updates
 The project uses automated dependency updates via GitHub Actions:
@@ -283,7 +284,7 @@ The project uses automated dependency updates via GitHub Actions:
 - **Workflow**: `dependency-updates.yml`
 - **Behavior**: Creates PRs with updated `uv.lock` file
 - **Major-version indicator**: The same workflow also runs a non-mutating check that reports direct runtime dependencies with a newer major release on PyPI in the job summary
-- **Testing**: Runs full test suite before creating PR
+- **Testing**: Runs unit tests and e2e (including MCP Inspector integration) before creating PR
 
 **Important**: PRs created by the dependency update workflow use `GITHUB_TOKEN`, which means CI/CD workflows **may not run automatically** on these PRs due to GitHub security restrictions.
 
@@ -299,7 +300,7 @@ The project uses automated dependency updates via GitHub Actions:
 5. Future dependency PRs will automatically trigger CI/CD workflows
 
 ### Review Process
-- Ensure all CI checks pass
+- Ensure all CI/CD checks pass (see [docs/BRANCH_PROTECTION.md](docs/BRANCH_PROTECTION.md) for required checks on `main`)
 - Verify test coverage for new code
 - Check that documentation is updated if needed
 - Validate security implications of changes

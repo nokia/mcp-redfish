@@ -9,8 +9,10 @@ Handles SSDP discovery and MCP server startup.
 
 import logging
 import os
+import sys
 import threading
 import time
+import warnings
 
 from . import tools  # noqa: F401 - Import tools to register them with MCP server
 from .common.config import MCP_TRANSPORT
@@ -18,6 +20,23 @@ from .common.discovery import SSDPDiscovery
 from .common.server import mcp
 
 logger = logging.getLogger(__name__)
+
+_PYTHON_3_13_DEPRECATION_MESSAGE = (
+    "Python 3.13 support is deprecated and will be removed in a future release. "
+    "Python 3.14 or later is recommended and fully supported. "
+    "See docs/PYTHON_RUNTIME.md for details."
+)
+
+
+def _warn_deprecated_python_runtime() -> None:
+    """Warn when running on a Python version scheduled for removal."""
+    if sys.version_info < (3, 14):
+        warnings.warn(
+            _PYTHON_3_13_DEPRECATION_MESSAGE,
+            FutureWarning,
+            stacklevel=2,
+        )
+        logger.warning(_PYTHON_3_13_DEPRECATION_MESSAGE)
 
 
 class RedfishMCPServer:
@@ -74,6 +93,7 @@ def main() -> None:
         level=getattr(logging, log_level, logging.INFO),
         format="%(asctime)s %(levelname)s %(message)s",
     )
+    _warn_deprecated_python_runtime()
     server = RedfishMCPServer()
     server.run()
 

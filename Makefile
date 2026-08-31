@@ -238,8 +238,8 @@ e2e: install-test e2e-emulator-start ## Run e2e tests
 e2e-verbose: install-test e2e-emulator-start ## Run e2e tests (verbose output)
 	uv run pytest -vv -s e2e/
 
-e2e-cov: install-test e2e-emulator-start ## Run e2e tests with coverage
-	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing e2e/
+e2e-cov: install-test e2e-emulator-start ## Run e2e tests with coverage (informational; use test-cov-all for enforced src coverage)
+	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=0 e2e/
 
 e2e-emulator-clean: e2e-emulator-stop ## Clean up emulator environment
 	@echo "Cleaning up emulator environment..."

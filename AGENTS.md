@@ -5,7 +5,7 @@
 The Redfish MCP Server is a Python-based Model Context Protocol (MCP) server that provides a natural language interface for managing infrastructure via Redfish APIs. It uses FastMCP framework and integrates with the Python Redfish library to enable AI agents to interact with Redfish-enabled infrastructure components.
 
 **Key Technologies:**
-- Python 3.13+
+- Python 3.14 recommended; Python 3.13 supported but deprecated ([runtime policy](docs/PYTHON_RUNTIME.md))
 - FastMCP framework
 - Python Redfish library
 - uv for dependency management
@@ -272,7 +272,7 @@ make lint format type-check security test
 
 ### CI/CD Pipeline
 - **Triggers**: Push to main/develop/fixes, PRs to main/develop
-- **Python versions**: 3.13 (primary)
+- **Python versions**: 3.13 and 3.14 in CI (3.14 primary for quality, containers, and dependency automation)
 - **Checks**: Tests, coverage, quality, security, Docker build
 - **Reports**: Coverage uploaded to Codecov
 
@@ -282,6 +282,7 @@ The project uses automated dependency updates via GitHub Actions:
 - **Schedule**: Weekly on Mondays at 9 AM UTC
 - **Workflow**: `dependency-updates.yml`
 - **Behavior**: Creates PRs with updated `uv.lock` file
+- **Major-version indicator**: The same workflow also runs a non-mutating check that reports direct runtime dependencies with a newer major release on PyPI in the job summary
 - **Testing**: Runs full test suite before creating PR
 
 **Important**: PRs created by the dependency update workflow use `GITHUB_TOKEN`, which means CI/CD workflows **may not run automatically** on these PRs due to GitHub security restrictions.

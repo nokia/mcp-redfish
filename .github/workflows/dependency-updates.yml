@@ -7,6 +7,31 @@ on:
   workflow_dispatch:
 
 jobs:
+  major-version-indicator:
+    name: Major Version Indicator
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.14"
+
+    - name: Check for newer direct-dependency major versions
+      id: major-versions
+      run: |
+        python scripts/check_major_dependency_updates.py "$RUNNER_TEMP/major-versions.md"
+        status=$?
+        if [ -f "$RUNNER_TEMP/major-versions.md" ]; then
+          cat "$RUNNER_TEMP/major-versions.md" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "All direct runtime dependencies are on the latest major version." >> "$GITHUB_STEP_SUMMARY"
+        fi
+        exit $status
+
   update-dependencies:
     name: Update Dependencies
     runs-on: ubuntu-latest
@@ -17,9 +42,9 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: "3.14"
 
     - name: Install uv
       run: |

@@ -47,6 +47,8 @@ finally:
 
 ## Development Workflow
 
+Supported runtimes: Python 3.14 recommended; Python 3.13 deprecated ([policy](../docs/PYTHON_RUNTIME.md)).
+
 ### Essential Commands
 ```bash
 make dev          # Full dev setup with pre-commit hooks

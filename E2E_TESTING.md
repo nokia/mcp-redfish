@@ -112,7 +112,7 @@ These tests verify:
 - **SSL/Authentication**: Proper handling of self-signed certificates and basic auth
 - **Real Data Validation**: Confirms tools return valid Redfish JSON responses
 
-**Implementation**: Uses the official MCP Inspector CLI for reliable, maintainable testing.
+**Implementation**: Uses the official MCP Inspector CLI v2 for reliable, maintainable testing. The pinned npm package version is stored in `e2e/inspector-version.lock` (policy in `e2e/inspector-version.toml`); minor/patch updates are applied by the dependency-update workflow.
 
 ### 3. Agent-Based Tests
 
@@ -193,13 +193,19 @@ export REDFISH_PASSWORD=""
 export REDFISH_AUTH_METHOD="basic"
 export REDFISH_SERVER_CA_CERT="e2e/certs/server.crt"
 
-# Test with MCP Inspector (interactive UI)
-npx @modelcontextprotocol/inspector uv run python -m src.main
+# Test with MCP Inspector (interactive UI; uses pinned version from e2e/inspector-version.lock)
+make inspect
 
-# Test with MCP Inspector CLI (automated testing)
-npx @modelcontextprotocol/inspector --cli --transport stdio uv run python -m src.main --method tools/list
-npx @modelcontextprotocol/inspector --cli --transport stdio uv run python -m src.main --method tools/call --tool-name list_servers
-npx @modelcontextprotocol/inspector --cli --transport stdio uv run python -m src.main --method tools/call --tool-name get_resource_data --tool-arg 'url=https://127.0.0.1:5000/redfish/v1'
+# Or launch the web UI directly with the pinned package:
+INSPECTOR="$(uv run python -c "from e2e.inspector_version import load_inspector_package_spec; print(load_inspector_package_spec())")"
+npx "$INSPECTOR" uv run python -m src.main
+
+# Test with MCP Inspector CLI v2 (server command first, then `--`, then inspector flags)
+npx "$INSPECTOR" --cli uv run python -m src.main -- --method tools/list --format json
+npx "$INSPECTOR" --cli uv run python -m src.main -- --method tools/call --tool-name list_servers --format json
+npx "$INSPECTOR" --cli uv run python -m src.main -- \
+  --method tools/call --tool-name get_resource_data \
+  --tool-arg 'url=https://127.0.0.1:5000/redfish/v1' --format json
 
 # Or test basic startup
 timeout 10s uv run python -m src.main
@@ -209,9 +215,7 @@ timeout 10s uv run python -m src.main
 
 ### Automatic Testing
 
-E2E tests run automatically:
-- On **pull requests** to `main` or `develop` branches
-- On **pushes** to `main`, `develop`, or `fixes` branches
+E2E tests run automatically on **pull requests** to `main` (see `.github/workflows/ci-cd.yml`).
 
 ### What Gets Tested
 

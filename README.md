@@ -432,15 +432,18 @@ For detailed information and advanced configuration options, visit the [mcphost 
 You can use the [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) for visual debugging of this MCP Server.
 
 ```sh
-# Using console script (recommended)
-npx @modelcontextprotocol/inspector uv run mcp-redfish
+# Recommended: Makefile shortcut (uses pinned Inspector from e2e/inspector-version.lock)
+make inspect
+
+# Using console script
+INSPECTOR="$(uv run python -c "from e2e.inspector_version import load_inspector_package_spec; print(load_inspector_package_spec())")"
+npx "$INSPECTOR" uv run mcp-redfish
 
 # Using module execution (for development)
-npx @modelcontextprotocol/inspector uv run python -m src.main
-
-# Or use the Makefile shortcut
-make inspect
+npx "$INSPECTOR" uv run python -m src.main
 ```
+
+Inspector minor/patch updates are automated weekly; see `e2e/inspector-version.toml`.
 
 ### End-to-End Testing
 

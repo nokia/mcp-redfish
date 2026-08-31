@@ -62,7 +62,7 @@ make e2e-test     # Full e2e testing with Redfish emulator
 ### Testing Strategy
 - **Unit tests**: `test/tools/`, `test/common/` - Mock Redfish responses
 - **Integration tests**: `test/integration/` - Real client interactions
-- **E2E tests**: `e2e/python/` using MCP Inspector CLI + DMTF Redfish Emulator
+- **E2E tests**: `e2e/` using MCP Inspector CLI v2 + DMTF Redfish Emulator
 - **Property-based tests**: `test/property/` using Hypothesis
 
 **Critical**: Environment variables in `test/conftest.py` set fast retry configuration for tests.
@@ -123,7 +123,7 @@ All Redfish operations use `tenacity` with configurable retry:
 ### E2E Testing
 The project uses DMTF Redfish Interface Emulator for comprehensive testing:
 - **Setup**: `make e2e-emulator-setup` (creates certificates, starts emulator)
-- **Framework**: `e2e/python/framework.py` with MCP Inspector CLI integration
+- **Framework**: `e2e/framework.py` with MCP Inspector CLI v2 integration
 - **Agent tests**: Optional OpenAI API integration for full agent workflows
 
 ## Integration Points

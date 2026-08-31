@@ -14,14 +14,15 @@ authors = [{name = "Nokia", email = "opensource@nokia.com"}]
 maintainers = [{name = "Nokia", email = "opensource@nokia.com"}]
 readme = "README.md"
 license = {file = "LICENSE"}
+# 3.13 is deprecated; see docs/PYTHON_RUNTIME.md. Raise to >=3.14 when support ends.
 requires-python = ">=3.13"
 keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
-    "redfish",
-    "certifi",
-    "python-dotenv",
-    "fastmcp",
-    "tenacity>=8.0.0"
+    "fastmcp>=3.4.7,<4",
+    "redfish>=3.3.0,<4",
+    "certifi>=2026.0.0",
+    "python-dotenv>=1.0.0,<2",
+    "tenacity>=9.0.0,<10",
 ]
 
 [project.urls]
@@ -81,7 +82,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.14"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Relaxed for external libraries
@@ -105,7 +106,9 @@ exclude = [
 namespace_packages = true
 
 [tool.ruff]
-target-version = "py313"  # Match project Python version
+# Keep py313 (not py314) while 3.13 remains supported: py314 formatting emits
+# PEP 758 "except A, B:" syntax that breaks 3.13. See docs/PYTHON_RUNTIME.md.
+target-version = "py313"
 line-length = 88
 
 [tool.ruff.format]

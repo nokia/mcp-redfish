@@ -506,7 +506,7 @@ make check       # Quick lint + test
 ## Development
 
 ### Prerequisites
-- Python 3.9+ (Python 3.13.5 recommended)
+- Python 3.14 recommended ([3.13 is deprecated](docs/PYTHON_RUNTIME.md) and will be removed in a future release)
 - [uv](https://docs.astral.sh/uv/) for package management
 
 ### Setup
@@ -587,7 +587,7 @@ The project uses pre-commit hooks for code quality:
 - **Custom checks**: Import sorting, trailing whitespace
 
 ### Type System
-- Uses modern Python 3.9+ built-in types (`dict`, `list`) instead of `typing.Dict`, `typing.List`
+- Uses modern Python 3.13+ built-in types (`dict`, `list`) instead of `typing.Dict`, `typing.List`
 - Comprehensive type annotations with MyPy strict mode
 - Return type annotations for all functions
 

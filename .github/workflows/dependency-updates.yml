@@ -7,6 +7,40 @@ on:
   workflow_dispatch:
 
 jobs:
+  major-version-indicator:
+    name: Major Version Indicator
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.14"
+
+    - name: Check for newer direct-dependency major versions
+      id: major-versions
+      run: |
+        python scripts/check_major_dependency_updates.py "$RUNNER_TEMP/major-versions.md"
+        python_status=$?
+        python scripts/check_inspector_version.py "$RUNNER_TEMP/inspector-major.md"
+        inspector_status=$?
+        if [ -f "$RUNNER_TEMP/major-versions.md" ]; then
+          cat "$RUNNER_TEMP/major-versions.md" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "All direct runtime dependencies are on the latest major version." >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [ -f "$RUNNER_TEMP/inspector-major.md" ]; then
+          cat "$RUNNER_TEMP/inspector-major.md" >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "MCP Inspector is on the latest major version." >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [ "$python_status" -ne 0 ] || [ "$inspector_status" -ne 0 ]; then
+          exit 1
+        fi
+
   update-dependencies:
     name: Update Dependencies
     runs-on: ubuntu-latest
@@ -17,9 +51,9 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: "3.13"
+        python-version: "3.14"
 
     - name: Install uv
       run: |
@@ -29,6 +63,9 @@ jobs:
     - name: Update dependencies
       run: |
         uv lock --upgrade
+
+    - name: Update MCP Inspector lock (minor/patch within constraint)
+      run: python scripts/update_inspector_version.py
 
     - name: Run tests to ensure updates don't break anything
       run: make test
@@ -49,6 +86,7 @@ jobs:
           This PR contains automated dependency updates.
 
           - Dependencies have been updated to their latest compatible versions
+          - MCP Inspector is bumped within the range in `e2e/inspector-version.toml`
           - All tests pass with the updated dependencies
           - Please review the changes and merge if everything looks good
 

@@ -1,0 +1,43 @@
+# Version-control and editor metadata
+.git
+.github
+.cursor
+.vscode
+.idea
+*.code-workspace
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+e2e/certs/
+
+# Python environments and generated files
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+wheels/
+
+# Test, coverage, and analysis artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+bandit-report.json
+htmlcov/
+
+# Local and scratch files
+test_variants.py
+*.swp
+*.swo
+*~
+.DS_Store

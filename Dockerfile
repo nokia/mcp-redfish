@@ -6,12 +6,18 @@ FROM python:3.14-slim
 RUN pip install --upgrade uv
 
 WORKDIR /app
-COPY . /app
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src ./src
 
 # Install dependencies and activate virtual environment
-RUN uv sync --locked
+RUN uv sync --locked --no-dev
 
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Default CMD is stdio-shaped (no MCP HTTP auth). If you override
+# MCP_TRANSPORT to sse or streamable-http, set MCP_AUTH_MODE (and MCP_AUTH_*)
+# or MCP_HTTP_AUTH=false. Non-loopback streamable-http also requires exact
+# FASTMCP_HTTP_ALLOWED_HOSTS. See docs/MCP_AUTH.md and
+# docs/MCP_HTTP_DEPLOYMENT.md.
 CMD ["uv", "run", "python", "-m", "src.main"]

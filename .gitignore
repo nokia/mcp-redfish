@@ -14,6 +14,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Local CVE / security review notes (not for commit)
+CVE_EVALUATION.md
+
 # Testing and quality assurance artifacts
 .coverage
 coverage.xml

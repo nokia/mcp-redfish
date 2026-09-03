@@ -103,6 +103,9 @@ def test_tools_fail_without_emulator_data(mcp_client: MCPTestClient, emulator_co
 
     # This should either fail or return an appropriate error response from the emulator
     if not result.success:
+        assert not result.is_infrastructure_failure(), (
+            f"Inspector/server infrastructure failed instead: {result.error_message}"
+        )
         assert result.is_error, "Failed call should indicate error"
         assert result.error_message, (
             "Should provide error message for non-existent resource"

@@ -25,6 +25,8 @@ if not OPENAI_API_KEY:
 
 async def main() -> None:
     # Setup server params for local filesystem access
+    # This example uses stdio. HTTP transports require MCP_AUTH_MODE (JWT/introspection)
+    # or MCP_HTTP_AUTH=false; see docs/MCP_AUTH.md.
     parent = Path(__file__).parent.parent
     redfish_server = StdioServerParams(
         command="uv",

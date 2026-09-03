@@ -9,6 +9,7 @@ Tests for host storage and discovery candidate separation.
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 # Patch sys.path to import from src
 sys.path.insert(
@@ -43,6 +44,12 @@ class TestHosts(unittest.TestCase):
 
         self.assertEqual(hosts.get_hosts(), [{"address": "configured.example.com"}])
         self.assertEqual(hosts.get_discovered_hosts(), discovered)
+
+    def test_static_hosts_come_from_validated_config(self):
+        validated = [{"address": "127.0.0.1", "port": None}]
+        with patch.object(hosts.common_config, "REDFISH_CFG", {"hosts": validated}):
+            hosts._load_static_hosts()
+        self.assertEqual(hosts.get_hosts(), validated)
 
 
 if __name__ == "__main__":

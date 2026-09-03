@@ -23,6 +23,12 @@ from e2e.framework import (
 )
 
 
+def _assert_tool_level_result(result: ToolCallResult) -> None:
+    assert not result.is_infrastructure_failure(), (
+        f"Inspector/server infrastructure failed instead: {result.error_message}"
+    )
+
+
 @pytest.mark.tools
 @pytest.mark.error_handling
 def test_invalid_tool_name(mcp_client: MCPTestClient):
@@ -31,6 +37,7 @@ def test_invalid_tool_name(mcp_client: MCPTestClient):
 
     # Should fail gracefully
     assert not result.success, "Call to non-existent tool should fail"
+    _assert_tool_level_result(result)
     assert result.is_error, "Result should indicate an error occurred"
     assert result.error_message, "Should provide error message for invalid tool"
 
@@ -45,6 +52,7 @@ def test_list_servers_with_invalid_arguments(mcp_client: MCPTestClient):
 
     # The tool should either succeed (ignoring invalid args) or fail gracefully
     if not result.success:
+        _assert_tool_level_result(result)
         assert result.is_error, "Failed call should indicate error"
         assert result.error_message, "Should provide error message"
     else:
@@ -62,6 +70,7 @@ def test_get_resource_data_without_arguments(mcp_client: MCPTestClient):
     # This should likely fail since get_resource_data probably requires arguments
     # But we test the behavior gracefully handles missing arguments
     if not result.success:
+        _assert_tool_level_result(result)
         assert result.is_error, "Call without required arguments should indicate error"
         assert result.error_message, (
             "Should provide error message for missing arguments"
@@ -89,6 +98,7 @@ def test_get_resource_data_with_invalid_arguments(
 
     # Should handle invalid arguments gracefully
     if not result.success:
+        _assert_tool_level_result(result)
         assert result.is_error, (
             f"Invalid argument {invalid_arg} should cause graceful error"
         )
@@ -128,6 +138,7 @@ def test_tool_chaining_workflow(mcp_client: MCPTestClient, emulator_config):
         )
     else:
         # If it fails, should provide useful error information
+        _assert_tool_level_result(resource_result)
         assert resource_result.error_message, (
             "Failed resource call should provide error details"
         )
@@ -167,6 +178,7 @@ def test_tool_with_empty_string_arguments(mcp_client: MCPTestClient):
 
     # Should handle empty string gracefully
     if not result.success:
+        _assert_tool_level_result(result)
         assert result.error_message, (
             "Empty string argument should provide clear error message"
         )
@@ -186,6 +198,7 @@ def test_tool_with_very_long_arguments(mcp_client: MCPTestClient):
     )
 
     if not result.success:
+        _assert_tool_level_result(result)
         assert result.error_message, (
             "Should provide error message for problematic long arguments"
         )

@@ -70,6 +70,18 @@ The Redfish MCP Server uses environment variables for configuration. The server 
 | `REDFISH_DISCOVERY_ENABLED`   | Enable SSDP discovery of review-only endpoint candidates  | `false`                    | No       |
 | `REDFISH_DISCOVERY_INTERVAL`  | Discovery interval in seconds                             | `30`                       | No       |
 | `MCP_TRANSPORT`               | Transport method: `stdio`, `sse`, or `streamable-http`   | `stdio`                    | No       |
+| `MCP_HTTP_AUTH`               | Require MCP client authentication on HTTP transports     | `true`                     | No       |
+| `MCP_ALLOW_REMOTE_SSE`        | Warned break-glass setting for non-loopback SSE          | `false`                    | No       |
+| `MCP_AUTH_MODE`               | `none` or `token` (this release)                         | `none`                     | HTTP if `MCP_HTTP_AUTH=true` |
+| `MCP_AUTH_TOKEN_LEEWAY_SECONDS` | Clock skew for JWT `nbf` and `iat` validation | `60` | No |
+| `MCP_AUTH_INTROSPECTION_ISSUER` | Required issuer in an active introspection response | unset | Introspection |
+| `MCP_AUTH_INTROSPECTION_AUDIENCE` | Required MCP resource audience in an introspection response | unset | Introspection |
+| `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE` | Explicitly trust a private IdP HTTPS endpoint and internal DNS/routing | `false` | No |
+| `FASTMCP_HOST`                | HTTP bind address. Unset/empty → this project binds `127.0.0.1` | (unset → `127.0.0.1`) | No       |
+| `FASTMCP_HTTP_ALLOWED_HOSTS`  | Exact client-facing hosts; required for off-loopback Streamable HTTP | FastMCP default | Non-loopback Streamable HTTP |
+| `MCP_TLS_CERTFILE`            | PEM server certificate for in-process HTTPS              | unset                      | With key, for HTTP TLS |
+| `MCP_TLS_KEYFILE`             | PEM private key for in-process HTTPS                     | unset                      | With cert, for HTTP TLS |
+| `MCP_TLS_TERMINATED`          | Assert TLS is terminated **in front of** this MCP Server | `false`                    | HTTP + auth + non-loopback without certs |
 | `MCP_REDFISH_LOG_LEVEL`       | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` | `INFO`        | No       |
 
 ### REDFISH_HOSTS Configuration
@@ -166,6 +178,11 @@ There are several ways to set environment variables:
    MCP_REDFISH_LOG_LEVEL=INFO
    ```
 
+   HTTP transports require MCP authentication. See the
+   [authentication guide](docs/MCP_AUTH.md) for JWT and introspection. See the
+   [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) for bind addresses,
+   Host/Origin protection, TLS, containers, and Kubernetes.
+
 2. **Setting Variables in the Shell**:
    Export environment variables directly in your shell before running the application:
    ```bash
@@ -185,12 +202,13 @@ The server performs comprehensive validation on startup:
 - **Transport Types**: Must be `stdio`, `sse`, or `streamable-http`
 - **Log Levels**: Must be `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL`
 
-If validation fails, the server will:
-1. Log detailed error messages
-2. Show a deprecation warning about falling back to legacy parsing
-3. Attempt to continue with basic configuration parsing
+If validation fails, the server reports the specific error as a single `Configuration error: …` line and **exits with a non-zero status** — no traceback, and no fallback parser: a configuration the validator rejects never starts the server with substituted defaults. A server that fails to start for any other reason also exits non-zero, so a supervisor restarts it instead of treating it as healthy.
 
-**Note**: The legacy fallback is deprecated and will be removed in future versions. Please ensure your configuration follows the validated format.
+A few FastMCP-native settings that would weaken these controls are refused at
+startup. See the [authentication guide](docs/MCP_AUTH.md) and
+[HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md).
+
+**Breaking change:** earlier releases logged a deprecation warning and continued with lenient legacy parsing, which could silently replace a malformed `REDFISH_HOSTS` with `127.0.0.1`, force `REDFISH_TLS_VERIFY` back to enabled, or pass an unrecognised `MCP_TRANSPORT` straight through to the server. All of those now abort. Fix the reported variable rather than relying on the old defaults.
 
 ## Running the Server
 
@@ -212,16 +230,35 @@ uv run python -m src.main
 ```bash
 # Development shortcuts
 make run-stdio    # Run with stdio transport
-make run-sse      # Run with SSE transport
+make run-sse      # SSE: fails closed unless MCP auth env is set
+make run-streamable-http  # Preferred HTTP transport; same auth rule
 make inspect      # Run with MCP Inspector
 ```
 
 ## Transports
 
-The MCP Redfish server supports multiple transport mechanisms for different deployment scenarios:
+The transport is how an MCP client connects to this server:
+
+- `stdio` starts the server as a local child process.
+- `streamable-http` accepts network connections and is the preferred remote
+  option.
+- `sse` is an older HTTP option with fewer browser-security protections.
+
+**Breaking change:** HTTP MCP transports (`sse`, `streamable-http`) now require authentication. Set `MCP_AUTH_MODE` (and the matching `MCP_AUTH_*` variables), or set `MCP_HTTP_AUTH=false` to keep unauthenticated HTTP. stdio is unchanged. See README and the release notes.
+
+The [authentication operator guide](docs/MCP_AUTH.md) includes a plain-English
+setup guide and definitions for terms such as JWT, IdP, JWKS, audience,
+introspection, and SSRF.
+The [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) covers bind addresses,
+Host/Origin protection, TLS, containers, and Kubernetes.
 
 ### stdio Transport (Default)
-Uses standard input/output for communication, suitable for direct MCP client integration and automated testing environments.
+The MCP client starts this server and communicates through the process's
+standard input and output. It does not open an HTTP port. MCP HTTP
+authentication does not apply.
+
+Do not use another tool to expose this local connection over unauthenticated
+HTTP.
 
 ```bash
 # Set transport mode
@@ -234,47 +271,89 @@ uv run mcp-redfish
 uv run python -m src.main
 ```
 
-### SSE Transport (Server-Sent Events)
-Enables network-based communication, allowing remote MCP clients to connect over HTTP.
+### streamable-http Transport (preferred HTTP)
+
+**Breaking change:** this transport will not start unless `MCP_AUTH_MODE` is configured or `MCP_HTTP_AUTH=false`.
 
 ```bash
-# Configure SSE transport
-export MCP_TRANSPORT="sse"
-
-# Start server - multiple options:
-make run-sse                                    # Makefile shortcut (recommended)
-uv run mcp-redfish --transport sse --port 8080  # Manual console script
-uv run python -m src.main --transport sse --port 8080  # Manual module execution
+export MCP_TRANSPORT=streamable-http
+# Production-shaped: JWT (see docs/MCP_AUTH.md)
+export MCP_AUTH_MODE=token
+export MCP_AUTH_JWT_JWKS_URI=https://idp.example.com/.well-known/jwks.json
+export MCP_AUTH_JWT_ISSUER=https://idp.example.com/
+export MCP_AUTH_JWT_AUDIENCE=mcp-redfish
+make run-streamable-http
 ```
 
-Test the SSE server:
+Lab only (unauthenticated HTTP):
+
+```bash
+export MCP_TRANSPORT=streamable-http
+export MCP_HTTP_AUTH=false   # logs a warning; any client that can reach this MCP Server can call tools
+make run-streamable-http
+```
+
+Clients send `Authorization: Bearer <token>` when auth is enabled. A request without a token is rejected:
+
 ```commandline
-curl -i http://127.0.0.1:8080/sse
-HTTP/1.1 200 OK
+curl -i http://127.0.0.1:8000/mcp
+HTTP/1.1 401 Unauthorized
 ```
 
-### streamable-http Transport
-Another network transport option for specific MCP client implementations.
+```commandline
+curl -i -H "Authorization: Bearer <jwt>" http://127.0.0.1:8000/mcp
+```
+
+### SSE Transport (Server-Sent Events)
+
+**Breaking change:** same authentication rule as streamable-http. Non-loopback
+SSE is refused by default because Host/Origin protection is a Streamable HTTP
+feature. Prefer streamable-http for remote use.
 
 ```bash
-export MCP_TRANSPORT="streamable-http"
-make run-streamable-http    # Makefile shortcut (recommended)
-# OR
-uv run mcp-redfish         # Manual execution
+export MCP_TRANSPORT="sse"
+export MCP_AUTH_MODE=token
+# ... JWT variables as above ...
+# Loopback SSE needs no extra setting. A legacy non-loopback deployment also
+# needs the warned break-glass setting MCP_ALLOW_REMOTE_SSE=true.
+make run-sse
 ```
 
-Integrate with your favorite tool or client. The VS Code configuration for GitHub Copilot is:
+Test the SSE server with a token:
+
+```commandline
+curl -i -H "Authorization: Bearer <jwt>" http://127.0.0.1:8000/sse
+```
+
+Without a token (auth enabled):
+
+```commandline
+curl -i http://127.0.0.1:8000/sse
+HTTP/1.1 401 Unauthorized
+```
+
+If `FASTMCP_HOST` is unset, the process binds `127.0.0.1`. Off-loopback HTTP with auth requires cert/key or `MCP_TLS_TERMINATED=true`.
+Off-loopback Streamable HTTP also defaults to strict Host/Origin protection and
+requires exact client-facing names in `FASTMCP_HTTP_ALLOWED_HOSTS`; wildcard
+patterns are refused.
+
+Integrate with your favorite tool or client. VS Code / GitHub Copilot HTTP (not a naked URL):
 
 ```commandline
 "mcp": {
-    "servers": {
-        "redfish-mcp": {
-            "type": "sse",
-            "url": "http://127.0.0.1:8000/sse"
-        },
+  "servers": {
+    "redfish-mcp": {
+      "type": "http",
+      "url": "http://127.0.0.1:8000/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:mcp-redfish-token}"
+      }
     }
-},
+  }
+}
 ```
+
+Lab HTTP without a token is `MCP_HTTP_AUTH=false` on loopback only. stdio remains the recommended VS Code path.
 
 ## Integration with Claude Desktop
 
@@ -539,8 +618,8 @@ make security      # Run bandit security scan
 
 # Development servers
 make run-stdio     # Run with stdio transport
-make run-sse       # Run with SSE transport
-make run-streamable-http  # Run with streamable-http transport
+make run-sse       # SSE (will not start without MCP auth env)
+make run-streamable-http  # Preferred HTTP transport (same auth rule)
 make inspect       # Run with MCP Inspector
 
 # All-in-one commands

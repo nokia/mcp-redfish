@@ -52,8 +52,20 @@ uv run mcp-redfish
 make run-stdio
 
 # Alternative transports
-make run-sse              # Server-Sent Events transport
-make run-streamable-http  # Streamable HTTP transport
+# Breaking change: HTTP MCP transports (sse, streamable-http) now require
+# authentication. Set MCP_AUTH_MODE (and the matching MCP_AUTH_* variables),
+# or set MCP_HTTP_AUTH=false to keep unauthenticated HTTP. stdio is unchanged.
+# make run-sse / make run-streamable-http will not start without that env.
+# Prefer streamable-http. Non-loopback binds also require exact values in
+# FASTMCP_HTTP_ALLOWED_HOSTS. See docs/MCP_AUTH.md for authentication and
+# docs/MCP_HTTP_DEPLOYMENT.md for listener, TLS, and deployment settings.
+# JWTs require exp and enforce nbf/future iat. Introspection additionally
+# requires MCP_AUTH_INTROSPECTION_ISSUER and MCP_AUTH_INTROSPECTION_AUDIENCE;
+# private IdPs require the warned MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true.
+# Non-loopback SSE is refused unless the legacy break-glass setting
+# MCP_ALLOW_REMOTE_SSE=true is explicitly set; prefer streamable-http.
+make run-sse              # Server-Sent Events transport (fail-closed without auth env)
+make run-streamable-http  # Streamable HTTP transport (fail-closed without auth env)
 
 # Development/CI: Run as module
 uv run python -m src.main
@@ -206,6 +218,9 @@ make security  # Run bandit security scanner
 - `.env.example` provides template
 - Never commit sensitive credentials
 - Use environment variables for production secrets
+- Never log tokens, token claims, passwords, client secrets, key contents,
+  required scope names, identity-provider response bodies, or proxy URLs.
+  Authentication failures use stable reason codes at DEBUG.
 
 ### Dependencies
 - Pin all dependencies in pyproject.toml

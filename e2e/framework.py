@@ -75,6 +75,20 @@ class ToolCallResult:
     raw_output: str
     error_message: str | None = None
 
+    def is_infrastructure_failure(self) -> bool:
+        """Return True when no tool-level assertion can be trusted."""
+        text = f"{self.error_message or ''}\n{self.raw_output}".casefold()
+        indicators = (
+            "timed out",
+            "timeout",
+            "connection refused",
+            "failed to connect",
+            "could not connect",
+            "econnrefused",
+            "server exited",
+        )
+        return any(indicator in text for indicator in indicators)
+
 
 class MCPTestClient:
     """

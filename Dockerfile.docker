@@ -7,13 +7,19 @@ FROM python:3.14-slim
 RUN pip install --upgrade uv
 
 WORKDIR /app
-COPY . /app
+COPY pyproject.toml uv.lock README.md LICENSE ./
+COPY src ./src
 
-# Install dependencies with cache optimization (Docker BuildKit feature)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --locked
+# Install runtime dependencies. The explicit COPY steps above preserve Docker
+# layer caching without making this file depend on a BuildKit-only cache mount.
+RUN uv sync --locked --no-dev
 
 # Add virtual environment to PATH
 ENV PATH="/app/.venv/bin:$PATH"
 
+# Default CMD is stdio-shaped (no MCP HTTP auth). If you override
+# MCP_TRANSPORT to sse or streamable-http, set MCP_AUTH_MODE (and MCP_AUTH_*)
+# or MCP_HTTP_AUTH=false. Non-loopback streamable-http also requires exact
+# FASTMCP_HTTP_ALLOWED_HOSTS. See docs/MCP_AUTH.md and
+# docs/MCP_HTTP_DEPLOYMENT.md.
 CMD ["uv", "run", "python", "-m", "src.main"]

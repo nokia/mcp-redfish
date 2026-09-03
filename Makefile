@@ -54,8 +54,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "Development:"
 	@echo "  run-stdio           Run MCP server with stdio transport"
-	@echo "  run-sse             Run MCP server with SSE transport"
-	@echo "  run-streamable-http Run MCP server with streamable-http transport"
+	@echo "  run-sse             Run MCP server with SSE (loopback by default; remote requires warned break-glass)"
+	@echo "  run-streamable-http Run MCP server with streamable-http (fails closed without MCP auth env; preferred HTTP)"
 	@echo "  inspect             Run MCP Inspector for debugging"
 	@echo ""
 	@echo "Container Build (Docker/Podman):"
@@ -164,10 +164,10 @@ pre-commit-run: install-dev ## Run pre-commit checks on all files
 run-stdio: install ## Run MCP server with stdio transport
 	MCP_TRANSPORT=stdio uv run python -m src.main
 
-run-sse: install ## Run MCP server with SSE transport (http://localhost:8000/sse)
+run-sse: install ## Run MCP server with SSE (HTTP auth required; non-loopback also requires MCP_ALLOW_REMOTE_SSE=true)
 	MCP_TRANSPORT=sse uv run python -m src.main
 
-run-streamable-http: install ## Run MCP server with streamable-http transport
+run-streamable-http: install ## Run MCP server with streamable-http (HTTP auth required; will not start without MCP_AUTH_MODE or MCP_HTTP_AUTH=false)
 	MCP_TRANSPORT=streamable-http uv run python -m src.main
 
 inspect: install ## Run MCP Inspector for debugging

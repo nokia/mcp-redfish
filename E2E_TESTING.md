@@ -61,6 +61,33 @@ make e2e-clean
 
 ## Testing Modes
 
+End-to-end (e2e) tests start the real MCP server and call it as a client would.
+Continuous integration (CI) runs these tests automatically for pull requests.
+An **emulator** is a local test service that behaves like a Redfish-enabled
+machine, so the tests do not manage real hardware.
+
+Default automated e2e stays **stdio** (`MCP_TRANSPORT=stdio` in `e2e/conftest.py`). stdio does not use MCP HTTP authentication.
+
+HTTP e2e (no live identity provider) is also in `make e2e` / CI:
+
+- `e2e/test_http_auth.py`: `MCP_TRANSPORT=streamable-http`, `MCP_HTTP_AUTH=false`, loopback — tools work and stderr contains the unauthenticated-HTTP warning.
+- `e2e/test_http_auth.py`: local JWT (`MCP_AUTH_MODE=token` + generated key pair) — unauthenticated HTTP fails; `Authorization: Bearer` can `list_servers`.
+- `e2e/test_http_auth.py`: a real local HTTPS introspection endpoint — private targets are blocked by default; explicit private-IdP trust succeeds; inactive, cross-audience, refresh, redirected, and oversized responses are rejected.
+- `e2e/test_http_auth.py`: strict non-loopback Host/Origin middleware — an invalid Host returns 421, an invalid Origin returns 403, and an allowed Host reaches Bearer authentication (401 without a token).
+
+The HTTP subprocess fixture removes inherited `MCP_AUTH_*`, `MCP_TLS_*`, and
+relevant `FASTMCP_*` values before applying each test configuration, so a
+developer's shell or `.env` cannot silently change the scenario. Negative
+Inspector tests also reject connection timeouts as evidence of an expected tool
+error.
+
+The ordinary integration suite additionally covers JWKS rotation, required
+scopes, JWT issuer and temporal claims, introspection audience/token-type
+binding, custom Streamable HTTP paths, clean server shutdown, and separation of
+MCP Bearer credentials from Redfish requests.
+
+Cloud IdPs (Auth0, GitHub, Keycloak, WorkOS, and similar) are **out of automated e2e**. Manual checklist: [docs/MCP_AUTH_MANUAL_IDP.md](docs/MCP_AUTH_MANUAL_IDP.md). Authentication guide: [docs/MCP_AUTH.md](docs/MCP_AUTH.md). HTTP deployment guide: [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
+
 ### 1. Pytest-based E2E Tests (Recommended)
 
 Modern, pytest-based e2e test framework:

@@ -67,6 +67,119 @@ def create_multiple_hosts(
     return [create_host_config(addr, **common_config) for addr in addresses]
 
 
+def write_self_signed_tls_pair(
+    directory: str, common_name: str = "127.0.0.1"
+) -> tuple[str, str]:
+    """Write a self-signed server certificate and key; return (cert_path, key_path)."""
+    from datetime import UTC, datetime, timedelta
+    from pathlib import Path
+
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes, serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from cryptography.x509.oid import ExtendedKeyUsageOID, NameOID
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    subject = issuer = x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, common_name)])
+    san: list[x509.GeneralName]
+    try:
+        import ipaddress
+
+        san = [x509.IPAddress(ipaddress.ip_address(common_name))]
+    except ValueError:
+        san = [x509.DNSName(common_name)]
+
+    certificate = (
+        x509.CertificateBuilder()
+        .subject_name(subject)
+        .issuer_name(issuer)
+        .public_key(key.public_key())
+        .serial_number(x509.random_serial_number())
+        .not_valid_before(datetime.now(UTC) - timedelta(minutes=1))
+        .not_valid_after(datetime.now(UTC) + timedelta(days=1))
+        .add_extension(x509.SubjectAlternativeName(san), False)
+        .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), False)
+        .sign(key, hashes.SHA256())
+    )
+
+    cert_path = Path(directory) / "server.crt"
+    key_path = Path(directory) / "server.key"
+    cert_path.write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
+    key_path.write_bytes(
+        key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
+    )
+    return str(cert_path), str(key_path)
+
+
+AUTH_ENV_KEYS = (
+    "MCP_AUTH_MODE",
+    "MCP_HTTP_AUTH",
+    "MCP_ALLOW_REMOTE_SSE",
+    "MCP_TLS_TERMINATED",
+    "MCP_TLS_CERTFILE",
+    "MCP_TLS_KEYFILE",
+    "MCP_AUTH_TOKEN_TYPE",
+    "MCP_AUTH_TOKEN_LEEWAY_SECONDS",
+    "MCP_AUTH_REQUIRED_SCOPES",
+    "MCP_AUTH_BASE_URL",
+    "MCP_AUTH_JWT_JWKS_URI",
+    "MCP_AUTH_JWT_ISSUER",
+    "MCP_AUTH_JWT_AUDIENCE",
+    "MCP_AUTH_JWT_ALGORITHM",
+    "MCP_AUTH_JWT_PUBLIC_KEY",
+    "MCP_AUTH_INTROSPECTION_URL",
+    "MCP_AUTH_INTROSPECTION_CLIENT_ID",
+    "MCP_AUTH_INTROSPECTION_CLIENT_SECRET",
+    "MCP_AUTH_INTROSPECTION_AUTH_METHOD",
+    "MCP_AUTH_INTROSPECTION_ISSUER",
+    "MCP_AUTH_INTROSPECTION_AUDIENCE",
+    "MCP_AUTH_INTROSPECTION_ALLOWED_TOKEN_TYPES",
+    "MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE",
+    "MCP_AUTH_AUTHORIZATION_SERVERS",
+    "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT",
+    "MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT",
+    "MCP_AUTH_OIDC_CONFIG_URL",
+    "MCP_AUTH_OIDC_AUDIENCE",
+    "MCP_AUTH_CLIENT_ID",
+    "MCP_AUTH_CLIENT_SECRET",
+    "MCP_AUTH_JWT_SIGNING_KEY",
+    "MCP_AUTH_STORAGE_ENCRYPTION_KEY",
+    "MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS",
+    "MCP_AUTH_REQUIRE_CONSENT",
+    "MCP_AUTH_FORWARD_PKCE",
+    "MCP_AUTH_REDIRECT_PATH",
+    "FASTMCP_HOST",
+    "FASTMCP_PORT",
+    "FASTMCP_SERVER_AUTH",
+    "FASTMCP_HTTP_HOST_ORIGIN_PROTECTION",
+    # FastMCP-native settings the validator now reads. A developer with any of
+    # these exported would otherwise get different results than CI.
+    "FASTMCP_SSRF_TRUST_PROXY",
+    "FASTMCP_HTTP_ALLOWED_HOSTS",
+    "FASTMCP_HTTP_ALLOWED_ORIGINS",
+    "HTTPS_PROXY",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+)
+
+
+def clear_auth_env(environ: dict[str, str] | None = None) -> None:
+    """Remove MCP auth/TLS/bind env vars from os.environ or a mapping."""
+    target = os.environ if environ is None else environ
+    for key in list(target):
+        if (
+            key in AUTH_ENV_KEYS
+            or key.startswith("FASTMCP_SERVER_AUTH_")
+            or key.startswith("MCP_AUTH_")
+        ):
+            target.pop(key, None)
+
+
 class MockEnvironment:
     """Context manager for temporarily setting environment variables in tests."""
 

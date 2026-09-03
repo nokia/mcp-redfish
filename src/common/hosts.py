@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-import json
 import logging
-import os
 import threading
 from typing import Any
+
+from . import config as common_config
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +20,14 @@ _discovered_hosts: list[HostEntry] = []
 
 def _load_static_hosts() -> None:
     """
-    Load static hosts from the REDFISH_HOSTS environment variable.
+    Load static hosts from the validated configuration.
+
+    Configuration parsing and defaults have one source of truth. Reading the
+    raw environment again here previously made tools see an empty host list
+    while ConfigValidator reported the default loopback host.
     """
     global _static_hosts
-    hosts_env = os.environ.get("REDFISH_HOSTS", "[]")
-    try:
-        _static_hosts = json.loads(hosts_env)
-    except Exception as e:
-        logger.error(f"Failed to parse REDFISH_HOSTS: {e}")
-        _static_hosts = []
+    _static_hosts = [dict(host) for host in common_config.REDFISH_CFG.get("hosts", [])]
 
 
 _load_static_hosts()

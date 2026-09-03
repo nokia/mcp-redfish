@@ -58,7 +58,7 @@ class TestPythonRuntimeDeprecation(unittest.TestCase):
 
 
 class TestRedfishMCPServerRun(unittest.TestCase):
-    """Test RedfishMCPServer.run() transport forwarding."""
+    """Test RedfishMCPServer.run() transport forwarding and HTTP auth wiring."""
 
     def setUp(self):
         """Set up test environment."""
@@ -71,24 +71,167 @@ class TestRedfishMCPServerRun(unittest.TestCase):
             },
         )
         self.env_patcher.start()
+        from test.utils import clear_auth_env
+
+        clear_auth_env()
 
     def tearDown(self):
         """Clean up test environment."""
         self.env_patcher.stop()
 
     @patch("src.main.mcp.run")
-    def test_run_forwards_configured_transport(self, mock_run):
-        """Test that run() forwards each supported transport to mcp.run()."""
+    def test_run_stdio_forwards_transport_only(self, mock_run):
+        """stdio does not pass HTTP host/TLS kwargs."""
         import src.main
         from src.main import RedfishMCPServer
 
-        transports = ["stdio", "sse", "streamable-http"]
-        for transport in transports:
+        with self.assertLogs("src.main", level="INFO") as logs:
+            with patch.object(src.main, "MCP_TRANSPORT", "stdio"):
+                RedfishMCPServer().run()
+        mock_run.assert_called_once_with(transport="stdio")
+        self.assertIn("http_authentication=not_applicable", "\n".join(logs.output))
+
+    @patch("src.main.mcp.run")
+    def test_run_http_default_auth_exits(self, mock_run):
+        """HTTP + default MCP_HTTP_AUTH + MODE=none exits non-zero.
+
+        "http" is included because FastMCP accepts it as a transport name: if
+        run() and the validator disagreed about what counts as HTTP, that value
+        would start an unauthenticated listener.
+        """
+        import src.main
+        from src.main import RedfishMCPServer
+
+        for transport in ("sse", "streamable-http", "http"):
             with self.subTest(transport=transport):
                 mock_run.reset_mock()
                 with patch.object(src.main, "MCP_TRANSPORT", transport):
-                    RedfishMCPServer().run()
-                mock_run.assert_called_once_with(transport=transport)
+                    with self.assertRaises(SystemExit) as ctx:
+                        RedfishMCPServer().run()
+                self.assertEqual(ctx.exception.code, 1)
+                mock_run.assert_not_called()
+
+    @patch("src.main.mcp.run", side_effect=RuntimeError("address already in use"))
+    def test_run_failure_exits_non_zero(self, mock_run):
+        """A server that failed to start must not report success to a supervisor."""
+        import src.main
+        from src.main import RedfishMCPServer
+
+        os.environ["MCP_HTTP_AUTH"] = "false"
+        with self.assertLogs("src.main", level="DEBUG") as logs:
+            for transport in ("stdio", "streamable-http"):
+                with self.subTest(transport=transport):
+                    with patch.object(src.main, "MCP_TRANSPORT", transport):
+                        with self.assertRaises(SystemExit) as ctx:
+                            RedfishMCPServer().run()
+                    self.assertEqual(ctx.exception.code, 1)
+        output = "\n".join(logs.output)
+        self.assertIn("error_type=RuntimeError", output)
+        self.assertIn("startup failure locations", output)
+        self.assertNotIn("address already in use", output)
+
+    @patch("src.main.mcp.run")
+    def test_run_http_auth_disabled_binds_loopback(self, mock_run):
+        """Unset FASTMCP_HOST is passed as 127.0.0.1, including with auth disabled."""
+        import src.main
+        from src.main import RedfishMCPServer
+
+        os.environ["MCP_HTTP_AUTH"] = "false"
+        os.environ.pop("FASTMCP_HOST", None)
+        with patch.object(src.main, "MCP_TRANSPORT", "streamable-http"):
+            RedfishMCPServer().run()
+        mock_run.assert_called_once()
+        kwargs = mock_run.call_args.kwargs
+        self.assertEqual(mock_run.call_args.args, ())
+        self.assertEqual(kwargs["transport"], "streamable-http")
+        self.assertEqual(kwargs["host"], "127.0.0.1")
+        self.assertEqual(kwargs["host_origin_protection"], "auto")
+        self.assertNotIn("uvicorn_config", kwargs)
+
+    @patch("src.main.mcp.run")
+    def test_run_http_host_passthrough_with_auth_disabled(self, mock_run):
+        """FASTMCP_HOST=0.0.0.0 is honored even when MCP_HTTP_AUTH=false."""
+        import src.main
+        from src.main import RedfishMCPServer
+
+        os.environ["MCP_HTTP_AUTH"] = "false"
+        os.environ["FASTMCP_HOST"] = "0.0.0.0"
+        os.environ["FASTMCP_HTTP_ALLOWED_HOSTS"] = '["mcp.example.com"]'
+        with patch.object(src.main, "MCP_TRANSPORT", "streamable-http"):
+            RedfishMCPServer().run()
+        self.assertEqual(mock_run.call_args.kwargs["host"], "0.0.0.0")
+        self.assertEqual(mock_run.call_args.kwargs["transport"], "streamable-http")
+
+    @patch("src.main.mcp.run")
+    def test_run_http_token_loopback_without_tls_flag(self, mock_run):
+        """Auth on default loopback bind starts without MCP_TLS_TERMINATED."""
+        from fastmcp.server.auth.providers.jwt import RSAKeyPair
+
+        import src.main
+        from src.main import RedfishMCPServer
+
+        keypair = RSAKeyPair.generate()
+        os.environ["MCP_AUTH_MODE"] = "token"
+        os.environ["MCP_AUTH_JWT_ISSUER"] = "https://issuer.example"
+        os.environ["MCP_AUTH_JWT_AUDIENCE"] = "mcp-redfish"
+        os.environ["MCP_AUTH_JWT_PUBLIC_KEY"] = keypair.public_key
+        os.environ.pop("FASTMCP_HOST", None)
+        os.environ.pop("MCP_TLS_TERMINATED", None)
+        with patch.object(src.main, "MCP_TRANSPORT", "streamable-http"):
+            RedfishMCPServer().run()
+        kwargs = mock_run.call_args.kwargs
+        self.assertEqual(kwargs["host"], "127.0.0.1")
+        self.assertNotIn("uvicorn_config", kwargs)
+
+    @patch("src.main.mcp.run")
+    def test_run_http_token_non_loopback_without_tls_exits(self, mock_run):
+        """Auth + FASTMCP_HOST=0.0.0.0 without flag or certs exits."""
+        from fastmcp.server.auth.providers.jwt import RSAKeyPair
+
+        import src.main
+        from src.main import RedfishMCPServer
+
+        keypair = RSAKeyPair.generate()
+        os.environ["MCP_AUTH_MODE"] = "token"
+        os.environ["MCP_AUTH_JWT_ISSUER"] = "https://issuer.example"
+        os.environ["MCP_AUTH_JWT_AUDIENCE"] = "mcp-redfish"
+        os.environ["MCP_AUTH_JWT_PUBLIC_KEY"] = keypair.public_key
+        os.environ["FASTMCP_HOST"] = "0.0.0.0"
+        with patch.object(src.main, "MCP_TRANSPORT", "streamable-http"):
+            with self.assertRaises(SystemExit) as ctx:
+                RedfishMCPServer().run()
+        self.assertEqual(ctx.exception.code, 1)
+        mock_run.assert_not_called()
+
+    @patch("src.main.mcp.run")
+    def test_run_http_cert_key_passed_to_uvicorn(self, mock_run):
+        """Readable cert+key are passed as uvicorn ssl_* without proxy warning."""
+        import tempfile
+
+        from fastmcp.server.auth.providers.jwt import RSAKeyPair
+
+        import src.main
+        from src.main import RedfishMCPServer
+
+        from test.utils import write_self_signed_tls_pair
+
+        keypair = RSAKeyPair.generate()
+        with tempfile.TemporaryDirectory() as tmp:
+            cert, key = write_self_signed_tls_pair(tmp)
+            os.environ["MCP_AUTH_MODE"] = "token"
+            os.environ["MCP_AUTH_JWT_ISSUER"] = "https://issuer.example"
+            os.environ["MCP_AUTH_JWT_AUDIENCE"] = "mcp-redfish"
+            os.environ["MCP_AUTH_JWT_PUBLIC_KEY"] = keypair.public_key
+            os.environ["FASTMCP_HOST"] = "0.0.0.0"
+            os.environ["MCP_TLS_CERTFILE"] = cert
+            os.environ["MCP_TLS_KEYFILE"] = key
+            os.environ["FASTMCP_HTTP_ALLOWED_HOSTS"] = '["mcp.example.com"]'
+            os.environ.pop("MCP_TLS_TERMINATED", None)
+            with patch.object(src.main, "MCP_TRANSPORT", "streamable-http"):
+                RedfishMCPServer().run()
+        uvicorn_config = mock_run.call_args.kwargs["uvicorn_config"]
+        self.assertEqual(uvicorn_config["ssl_certfile"], os.environ["MCP_TLS_CERTFILE"])
+        self.assertEqual(uvicorn_config["ssl_keyfile"], os.environ["MCP_TLS_KEYFILE"])
 
 
 class TestMainModule(unittest.TestCase):

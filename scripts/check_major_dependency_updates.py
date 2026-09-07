@@ -10,12 +10,17 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from major_version_findings import MajorVersionFinding  # noqa: E402
+
 PYPROJECT = ROOT / "pyproject.toml"
 UV_LOCK = ROOT / "uv.lock"
 PYPI_URL = "https://pypi.org/pypi/{package}/json"
@@ -58,19 +63,9 @@ def load_locked_versions() -> dict[str, str]:
     return {package["name"]: package["version"] for package in data["package"]}
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Report direct runtime dependencies with newer major versions."
-    )
-    parser.add_argument(
-        "--summary-file",
-        type=Path,
-        help="Optional path for a GitHub Actions job summary markdown file.",
-    )
-    args = parser.parse_args(argv)
-
+def collect_outdated_major_versions() -> list[MajorVersionFinding]:
     locked_versions = load_locked_versions()
-    outdated: list[tuple[str, str, str, int, int]] = []
+    outdated: list[MajorVersionFinding] = []
 
     for requirement in load_direct_dependencies():
         package = parse_package_name(requirement)
@@ -85,44 +80,75 @@ def main(argv: list[str] | None = None) -> int:
             print(f"::warning title=PyPI lookup failed::{package}: {exc}")
             continue
 
-        locked_major = major_version(locked_version)
-        latest_major = major_version(latest_version)
-        if latest_major > locked_major:
+        if major_version(latest_version) > major_version(locked_version):
             outdated.append(
-                (package, locked_version, latest_version, locked_major, latest_major)
+                MajorVersionFinding(
+                    package=package,
+                    locked_version=locked_version,
+                    latest_version=latest_version,
+                    registry="PyPI",
+                )
             )
+
+    return outdated
+
+
+def format_summary_markdown(findings: list[MajorVersionFinding]) -> str:
+    if not findings:
+        return ""
+
+    lines = [
+        "## Major-version availability indicator",
+        "",
+        "The following direct runtime dependencies have a newer major release "
+        "on PyPI. This check is informational only; automated updates remain "
+        "within the bounded ranges in `pyproject.toml`.",
+        "",
+        "| Package | Locked | Latest |",
+        "| --- | --- | --- |",
+    ]
+    for finding in findings:
+        lines.append(
+            f"| `{finding.package}` | `{finding.locked_version}` | "
+            f"`{finding.latest_version}` |"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Report direct runtime dependencies with newer major versions."
+    )
+    parser.add_argument(
+        "--summary-file",
+        type=Path,
+        help="Optional path for a GitHub Actions job summary markdown file.",
+    )
+    args = parser.parse_args(argv)
+
+    outdated = collect_outdated_major_versions()
 
     if not outdated:
         print("All direct runtime dependencies are on the latest major version.")
         return 0
 
     print("Direct dependencies with a newer major version available on PyPI:")
-    for package, locked, latest, locked_major, latest_major in outdated:
+    for finding in outdated:
         print(
-            f"- {package}: locked major {locked_major} ({locked}), "
-            f"latest major {latest_major} ({latest})"
+            f"- {finding.package}: locked {finding.locked_version}, "
+            f"latest {finding.latest_version}"
         )
         print(
-            f"::warning title=New major version available::{package} "
-            f"{locked} -> {latest}"
+            f"::warning title=New major version available::{finding.package} "
+            f"{finding.locked_version} -> {finding.latest_version}"
         )
 
     if args.summary_file is not None:
-        lines = [
-            "## Major-version availability indicator",
-            "",
-            "The following direct runtime dependencies have a newer major release "
-            "on PyPI. This check is informational only; automated updates remain "
-            "within the bounded ranges in `pyproject.toml`.",
-            "",
-            "| Package | Locked | Latest |",
-            "| --- | --- | --- |",
-        ]
-        for package, locked, latest, _, _ in outdated:
-            lines.append(f"| `{package}` | `{locked}` | `{latest}` |")
-        args.summary_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        args.summary_file.write_text(
+            format_summary_markdown(outdated), encoding="utf-8"
+        )
 
-    return 1
+    return 0
 
 
 if __name__ == "__main__":

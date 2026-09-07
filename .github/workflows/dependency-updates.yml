@@ -5,12 +5,20 @@ on:
     # Run weekly on Mondays at 9 AM UTC
     - cron: '0 9 * * 1'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: >-
+          Run checks and dependency updates without creating/updating GitHub
+          issues or opening a dependency update pull request.
+        type: boolean
+        default: false
 
 jobs:
   major-version-indicator:
     name: Major Version Indicator
     runs-on: ubuntu-latest
-    continue-on-error: true
+    permissions:
+      issues: write
 
     steps:
     - uses: actions/checkout@v4
@@ -20,13 +28,21 @@ jobs:
       with:
         python-version: "3.14"
 
-    - name: Check for newer direct-dependency major versions
-      id: major-versions
+    - name: Report newer major versions
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_SERVER_URL: ${{ github.server_url }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
       run: |
-        python scripts/check_major_dependency_updates.py --summary-file "$RUNNER_TEMP/major-versions.md"
-        python_status=$?
-        python scripts/check_inspector_version.py --summary-file "$RUNNER_TEMP/inspector-major.md"
-        inspector_status=$?
+        DRY_RUN_ARGS=()
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+          DRY_RUN_ARGS=(--dry-run)
+          echo "**Dry run:** GitHub issue sync was skipped." >> "$GITHUB_STEP_SUMMARY"
+        fi
+        python scripts/manage_major_version_indicator_issue.py \
+          --summary-dir "$RUNNER_TEMP" \
+          "${DRY_RUN_ARGS[@]}"
         if [ -f "$RUNNER_TEMP/major-versions.md" ]; then
           cat "$RUNNER_TEMP/major-versions.md" >> "$GITHUB_STEP_SUMMARY"
         else
@@ -36,9 +52,6 @@ jobs:
           cat "$RUNNER_TEMP/inspector-major.md" >> "$GITHUB_STEP_SUMMARY"
         else
           echo "MCP Inspector is on the latest major version." >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ "$python_status" -ne 0 ] || [ "$inspector_status" -ne 0 ]; then
-          exit 1
         fi
 
   update-dependencies:
@@ -103,8 +116,22 @@ jobs:
         make e2e-emulator-stop || true
         make e2e-dex-stop || true
 
+    - name: Report dependency changes (dry run)
+      if: github.event_name == 'workflow_dispatch' && inputs.dry_run == true
+      run: |
+        echo "**Dry run:** dependency updates and tests completed; PR creation skipped." >> "$GITHUB_STEP_SUMMARY"
+        if git diff --quiet uv.lock e2e/inspector-version.lock; then
+          echo "No lockfile changes." >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          git diff --stat uv.lock e2e/inspector-version.lock >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+        fi
+
     - name: Create Pull Request
       id: create-pr
+      if: github.event_name != 'workflow_dispatch' || inputs.dry_run != true
       uses: peter-evans/create-pull-request@v5
       with:
         # To enable automatic CI triggers:

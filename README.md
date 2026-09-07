@@ -154,44 +154,44 @@ Discovered candidates are not returned by `list_servers` and are not used by `ge
 
 There are several ways to set environment variables:
 
-1. **Using a `.env` File** (Recommended):
-   Place a `.env` file in your project directory with key-value pairs for each environment variable. This is secure and convenient, keeping sensitive data out of version control.
+1. **Using a .env file** (Recommended):
 
-   ```bash
-   # Copy the example configuration
-   cp .env.example .env
+    Place a `.env` file in your project directory with key-value pairs for each environment variable. This is secure and convenient, keeping sensitive data out of version control.
 
-   # Edit the .env file with your settings
-   nano .env
-   ```
+    ```bash
+    # Copy the example configuration
+    cp .env.example .env
 
-   Example `.env` file:
-   ```bash
-   # Redfish endpoint configuration
-   REDFISH_HOSTS='[{"address": "192.168.1.100", "username": "admin", "password": "secret123"}, {"address": "192.168.1.101", "port": 8443}]'
-   REDFISH_AUTH_METHOD=session
-   REDFISH_USERNAME=default_user
-   REDFISH_PASSWORD=default_pass
-  REDFISH_TLS_VERIFY=true
+    # Edit the .env file with your settings
+    nano .env
+    ```
 
-   # MCP configuration
-   MCP_TRANSPORT=stdio
-   MCP_REDFISH_LOG_LEVEL=INFO
-   ```
+    Example `.env` contents:
 
-   HTTP transports require MCP authentication. See the
-   [authentication guide](docs/MCP_AUTH.md) for JWT, introspection,
-   Remote OAuth, OAuth Proxy, and OIDC Proxy. See the
-   [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) for bind addresses,
-   Host/Origin protection, TLS, containers, and Kubernetes.
+    ```bash
+    # Redfish endpoint configuration
+    REDFISH_HOSTS='[{"address": "192.168.1.100", "username": "admin", "password": "secret123"}, {"address": "192.168.1.101", "port": 8443}]'
+    REDFISH_AUTH_METHOD=session
+    REDFISH_USERNAME=default_user
+    REDFISH_PASSWORD=default_pass
+    REDFISH_TLS_VERIFY=true
 
-2. **Setting Variables in the Shell**:
-   Export environment variables directly in your shell before running the application:
-   ```bash
-   export REDFISH_HOSTS='[{"address": "127.0.0.1"}]'
-   export MCP_TRANSPORT="stdio"
-   export MCP_REDFISH_LOG_LEVEL="DEBUG"
-   ```
+    # MCP configuration
+    MCP_TRANSPORT=stdio
+    MCP_REDFISH_LOG_LEVEL=INFO
+    ```
+
+    HTTP transports require MCP authentication. See the [authentication guide](docs/MCP_AUTH.md) for JWT, introspection, Remote OAuth, OAuth Proxy, and OIDC Proxy. See the [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) for bind addresses, Host/Origin protection, TLS, containers, and Kubernetes.
+
+2. **Setting variables in the shell**:
+
+    Export environment variables directly in your shell before running the application:
+
+    ```bash
+    export REDFISH_HOSTS='[{"address": "127.0.0.1"}]'
+    export MCP_TRANSPORT="stdio"
+    export MCP_REDFISH_LOG_LEVEL="DEBUG"
+    ```
 
 ### Configuration Validation
 

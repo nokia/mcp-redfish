@@ -16,6 +16,7 @@ wheels/
 
 # Local CVE / security review notes (not for commit)
 CVE_EVALUATION.md
+docs/MCP_AUTH_REVIEW.md
 
 # Testing and quality assurance artifacts
 .coverage
@@ -28,6 +29,7 @@ bandit-report.json
 
 # E2E testing artifacts
 e2e/certs/
+e2e/config/dex.generated.yaml
 # E2E test artifacts
 
 # IDE and editor files

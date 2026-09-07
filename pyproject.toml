@@ -19,6 +19,7 @@ requires-python = ">=3.13"
 keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
     "fastmcp>=3.4.7,<4",
+    "httpx2>=2.12.0,<3",
     "redfish>=3.3.0,<4",
     "certifi>=2026.0.0",
     "python-dotenv>=1.0.0,<2",
@@ -49,6 +50,9 @@ test = [
     "hypothesis>=6.0.0",
     "requests>=2.25.0",  # For e2e emulator health checks
 ]
+redis = [
+    "redis>=5.0.0,<7",
+]
 
 [project.scripts]
 mcp-redfish = "src.main:main"
@@ -72,8 +76,9 @@ addopts = [
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
+    "e2e: End-to-end tests",
     "slow: Slow running tests",
-    "e2e: End-to-end integration tests",
+    "idp: Tests that require a local identity provider",
     "tools: Tool-specific tests",
     "discovery: Tool discovery tests",
     "error_handling: Error handling and edge case tests",

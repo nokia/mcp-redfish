@@ -14,7 +14,7 @@ from fastmcp.settings import Settings as FastMCPSettings
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 PARAMETER_PATTERN = re.compile(
-    r"\b(?:MCP|FASTMCP|REDFISH|EMULATOR)_[A-Z0-9_]+\b"
+    r"\b(?:MCP|FASTMCP|REDFISH|EMULATOR|DEX)_[A-Z0-9_]+\b"
     r"|\b(?:HTTPS?_PROXY|ALL_PROXY|NO_PROXY|SSL_CERT_FILE|SSL_CERT_DIR"
     r"|OPENAI_API_KEY|PAT_TOKEN)\b"
 )

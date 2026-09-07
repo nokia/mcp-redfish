@@ -1,0 +1,44 @@
+# Copyright 2025 Nokia
+# Licensed under the BSD 3-Clause License.
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Dex configuration for MCP HTTP auth e2e. Placeholders are substituted by
+# e2e/scripts/dex.sh. This is a local identity provider for tests, not a
+# production Dex deployment.
+
+issuer: __DEX_ISSUER__
+
+storage:
+  type: memory
+
+web:
+  https: 0.0.0.0:5556
+  tlsCert: /etc/dex/tls.crt
+  tlsKey: /etc/dex/tls.key
+
+logger:
+  level: error
+  format: text
+
+oauth2:
+  skipApprovalScreen: true
+  alwaysShowLoginScreen: false
+  grantTypes:
+    - authorization_code
+    - refresh_token
+
+staticClients:
+  - id: mcp-redfish-e2e
+    name: mcp-redfish-e2e
+    secret: e2e-oidc-client-secret
+    redirectURIs:
+      - http://127.0.0.1:__DEX_MCP_PORT__/auth/callback
+      # Direct Dex authorize/token for remote_oauth e2e (no MCP proxy callback).
+      - http://127.0.0.1:9/callback
+
+enablePasswordDB: false
+
+connectors:
+  - type: mockCallback
+    id: mock
+    name: Mock

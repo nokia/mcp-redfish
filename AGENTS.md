@@ -62,6 +62,8 @@ make run-stdio
 # JWTs require exp and enforce nbf/future iat. Introspection additionally
 # requires MCP_AUTH_INTROSPECTION_ISSUER and MCP_AUTH_INTROSPECTION_AUDIENCE;
 # private IdPs require the warned MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true.
+# Loopback/private JWKS (OIDC Proxy, JWT JWKS) requires the warned
+# MCP_AUTH_JWKS_ALLOW_PRIVATE=true.
 # Non-loopback SSE is refused unless the legacy break-glass setting
 # MCP_ALLOW_REMOTE_SSE=true is explicitly set; prefer streamable-http.
 make run-sse              # Server-Sent Events transport (fail-closed without auth env)
@@ -187,10 +189,14 @@ make e2e
 # Individual e2e commands
 make e2e-emulator-setup     # Set up emulator and certificates
 make e2e-emulator-start     # Start Redfish Interface Emulator
+make e2e-dex-start          # Start CNCF Dex for OAuth/OIDC Proxy e2e
 make e2e                    # Run comprehensive tests with Python framework (recommended)
 make e2e-emulator-status    # Check emulator status
+make e2e-dex-status         # Check Dex status
 make e2e-emulator-logs      # View emulator logs
+make e2e-dex-logs           # View Dex logs
 make e2e-emulator-stop      # Stop emulator
+make e2e-dex-stop           # Stop Dex
 make e2e-emulator-clean     # Clean up everything
 ```
 
@@ -200,8 +206,9 @@ make e2e-emulator-clean     # Clean up everything
 
 **E2E Environment:**
 - Uses DMTF Redfish Interface Emulator as test target
+- CNCF Dex as the local identity provider for OAuth Proxy and OIDC Proxy e2e (`make e2e` starts it)
 - Self-signed SSL certificates for HTTPS testing
-- Docker-based emulator setup
+- Docker-based emulator and Dex setup
 - Local development and CI/CD compatible
 
 For complete e2e testing documentation, see [E2E_TESTING.md](./E2E_TESTING.md).

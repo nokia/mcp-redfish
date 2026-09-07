@@ -72,11 +72,12 @@ The Redfish MCP Server uses environment variables for configuration. The server 
 | `MCP_TRANSPORT`               | Transport method: `stdio`, `sse`, or `streamable-http`   | `stdio`                    | No       |
 | `MCP_HTTP_AUTH`               | Require MCP client authentication on HTTP transports     | `true`                     | No       |
 | `MCP_ALLOW_REMOTE_SSE`        | Warned break-glass setting for non-loopback SSE          | `false`                    | No       |
-| `MCP_AUTH_MODE`               | `none` or `token` (this release)                         | `none`                     | HTTP if `MCP_HTTP_AUTH=true` |
+| `MCP_AUTH_MODE`               | `none`, `token`, `remote_oauth`, `oauth_proxy`, or `oidc_proxy` | `none`                     | HTTP if `MCP_HTTP_AUTH=true` |
 | `MCP_AUTH_TOKEN_LEEWAY_SECONDS` | Clock skew for JWT `nbf` and `iat` validation | `60` | No |
 | `MCP_AUTH_INTROSPECTION_ISSUER` | Required issuer in an active introspection response | unset | Introspection |
 | `MCP_AUTH_INTROSPECTION_AUDIENCE` | Required MCP resource audience in an introspection response | unset | Introspection |
 | `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE` | Explicitly trust a private IdP HTTPS endpoint and internal DNS/routing | `false` | No |
+| `MCP_AUTH_JWKS_ALLOW_PRIVATE` | Explicitly trust a private/loopback JWKS URL (lab IdPs such as local Dex) | `false` | No |
 | `FASTMCP_HOST`                | HTTP bind address. Unset/empty → this project binds `127.0.0.1` | (unset → `127.0.0.1`) | No       |
 | `FASTMCP_HTTP_ALLOWED_HOSTS`  | Exact client-facing hosts; required for off-loopback Streamable HTTP | FastMCP default | Non-loopback Streamable HTTP |
 | `MCP_TLS_CERTFILE`            | PEM server certificate for in-process HTTPS              | unset                      | With key, for HTTP TLS |
@@ -179,7 +180,8 @@ There are several ways to set environment variables:
    ```
 
    HTTP transports require MCP authentication. See the
-   [authentication guide](docs/MCP_AUTH.md) for JWT and introspection. See the
+   [authentication guide](docs/MCP_AUTH.md) for JWT, introspection,
+   Remote OAuth, OAuth Proxy, and OIDC Proxy. See the
    [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) for bind addresses,
    Host/Origin protection, TLS, containers, and Kubernetes.
 
@@ -249,7 +251,7 @@ The transport is how an MCP client connects to this server:
 The [authentication operator guide](docs/MCP_AUTH.md) includes a plain-English
 setup guide and definitions for terms such as JWT, IdP, JWKS, audience,
 introspection, and SSRF.
-The [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) covers bind addresses,
+The [HTTP deployment guide](docs/MCP_HTTP_DEPLOYMENT.md) expands bind addresses,
 Host/Origin protection, TLS, containers, and Kubernetes.
 
 ### stdio Transport (Default)
@@ -304,11 +306,33 @@ HTTP/1.1 401 Unauthorized
 curl -i -H "Authorization: Bearer <jwt>" http://127.0.0.1:8000/mcp
 ```
 
+### HTTP listener: bind address, TLS, and Host/Origin
+
+These settings are **separate from authentication** (`MCP_AUTH_*`). Authentication
+decides *who* may call MCP tools. The listener settings decide *where* the server
+accepts connections, whether the network path is encrypted, and (for Streamable
+HTTP) whether the request's `Host` and `Origin` headers are trusted.
+
+| Concern | Variables | Loopback (`FASTMCP_HOST` unset → `127.0.0.1`) | Off-loopback (`FASTMCP_HOST=0.0.0.0`, a pod IP, etc.) |
+| --- | --- | --- | --- |
+| **Bind address** | `FASTMCP_HOST`, `FASTMCP_PORT` | Only local clients can connect. Cleartext HTTP is allowed. | The server may be reachable from the network. |
+| **TLS on the wire** | `MCP_TLS_CERTFILE` + `MCP_TLS_KEYFILE`, or `MCP_TLS_TERMINATED=true` | Not required. | **Required** when HTTP authentication is enabled. Either terminate TLS in this process (cert + key) or set `MCP_TLS_TERMINATED=true` only when a reverse proxy or mesh already provides HTTPS in front. |
+| **Host/Origin checks** | `FASTMCP_HTTP_ALLOWED_HOSTS`, optionally `FASTMCP_HTTP_ALLOWED_ORIGINS` | Automatic for Streamable HTTP. | **Required** for Streamable HTTP: list every exact client-facing hostname. Wildcards (`*`) are refused. |
+
+Notes:
+
+- Configure JWT, introspection, or OAuth/OIDC in [docs/MCP_AUTH.md](docs/MCP_AUTH.md);
+  none of the listener variables above replace that.
+- `sse` shares bind-address and TLS rules but has **no** Host/Origin protection,
+  so non-loopback SSE is refused unless you set the warned
+  `MCP_ALLOW_REMOTE_SSE=true` break-glass flag.
+- Step-by-step remote deployment: [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
+
 ### SSE Transport (Server-Sent Events)
 
-**Breaking change:** same authentication rule as streamable-http. Non-loopback
-SSE is refused by default because Host/Origin protection is a Streamable HTTP
-feature. Prefer streamable-http for remote use.
+**Breaking change:** same authentication rule as streamable-http. Same bind-address
+and TLS requirements as above. Non-loopback SSE is refused by default because it
+has no Host/Origin protection — prefer streamable-http for remote use.
 
 ```bash
 export MCP_TRANSPORT="sse"
@@ -331,11 +355,6 @@ Without a token (auth enabled):
 curl -i http://127.0.0.1:8000/sse
 HTTP/1.1 401 Unauthorized
 ```
-
-If `FASTMCP_HOST` is unset, the process binds `127.0.0.1`. Off-loopback HTTP with auth requires cert/key or `MCP_TLS_TERMINATED=true`.
-Off-loopback Streamable HTTP also defaults to strict Host/Origin protection and
-requires exact client-facing names in `FASTMCP_HTTP_ALLOWED_HOSTS`; wildcard
-patterns are refused.
 
 Integrate with your favorite tool or client. VS Code / GitHub Copilot HTTP (not a naked URL):
 

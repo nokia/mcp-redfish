@@ -40,8 +40,12 @@ def build_inspector_command(
     inspector_options: list[str],
 ) -> list[str]:
     """Build an MCP Inspector v2 CLI command."""
+    merged_env = dict(server_env)
+    # Keep Inspector stderr readable in e2e (server logs, third-party warnings).
+    merged_env.setdefault("PYTHONWARNINGS", "ignore")
+
     env_flags: list[str] = []
-    for key, value in server_env.items():
+    for key, value in merged_env.items():
         if value == "":
             continue
         env_flags.extend(["-e", f"{key}={value}"])

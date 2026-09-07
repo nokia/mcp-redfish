@@ -5,11 +5,19 @@ service that creates and validates access tokens, such as Keycloak, Auth0, or
 Okta.
 
 These checks are not required by continuous integration (CI). Automated tests
-already cover local JWTs, a local HTTPS introspection service, and HTTP
-Host/Origin protection. A real IdP needs organization-specific accounts,
-secrets, and network access.
+already cover local JWTs, a local HTTPS introspection service, HTTP
+Host/Origin protection, Remote OAuth metadata routes, OAuth Proxy login against
+a loopback OpenID simulator in the integration suite, and OAuth Proxy, OIDC
+Proxy, and Remote OAuth against CNCF Dex (including OIDC access-token
+verification and Dex JWT Bearer without MCP-client DCR). A real cloud IdP needs
+organization-specific accounts, secrets, and network access. GitHub, Azure, and
+Auth0 can differ from Dex in token format, discovery fields, and consent.
 
-Remote OAuth, OAuth Proxy, and OIDC Proxy are not implemented in this release.
+Before choosing an IdP, read [Identity provider requirements](./MCP_AUTH.md#identity-provider-requirements)
+in the authentication guide. Browser login modes only work when the IdP issues
+JWT access tokens (JWKS or a fixed public key), opaque tokens plus an
+introspection endpoint the MCP Server can call, or — for `oidc_proxy` only — a
+signed OIDC ID token when access tokens are opaque.
 
 ## Before you start
 
@@ -94,6 +102,56 @@ Remote OAuth, OAuth Proxy, and OIDC Proxy are not implemented in this release.
 Use this setup only for a temporary local lab. Any client that can reach the
 port can use the configured Redfish credentials.
 
-## Later phases (not implemented)
+## Check Remote OAuth
 
-When Remote OAuth / OAuth Proxy / OIDC Proxy ship, add per-mode steps here: env vars, expected 401 without login, success after the IdP redirect, and metadata routes that stay public by design (`/.well-known/…`).
+1. Set `MCP_AUTH_MODE=remote_oauth` and the JWT or introspection variables from
+   the sections above.
+2. Set `MCP_AUTH_AUTHORIZATION_SERVERS` to a JSON array of HTTPS issuer URLs.
+3. Set `MCP_AUTH_BASE_URL` to this MCP Server's public origin.
+4. `GET /.well-known/oauth-protected-resource/mcp` without a Bearer token.
+   Expect HTTP 200. This route is public by design.
+5. Call `list_servers` without a token. Expect HTTP 401.
+6. Complete the identity provider login (DCR) in a real MCP client, then call
+   `list_servers` with the issued Bearer token.
+
+Do not automate this browser login in CI.
+
+## Check OAuth Proxy
+
+1. Register a fixed OAuth application with the identity provider. Set the
+   redirect URI to `{MCP_AUTH_BASE_URL}/auth/callback` (or your custom
+   `MCP_AUTH_REDIRECT_PATH`).
+2. Set `MCP_AUTH_MODE=oauth_proxy`, the upstream authorize/token HTTPS URLs,
+   `MCP_AUTH_CLIENT_ID`, and `MCP_AUTH_CLIENT_SECRET`.
+3. Configure upstream token verification (JWT or introspection) as for
+   `MCP_AUTH_MODE=token`. The upstream access token must be a JWT or an
+   introspectable opaque token. GitHub access tokens are neither.
+4. Off-loopback, also set `MCP_AUTH_JWT_SIGNING_KEY` and TLS as in
+   [MCP_HTTP_DEPLOYMENT.md](./MCP_HTTP_DEPLOYMENT.md).
+5. `GET /.well-known/oauth-authorization-server` without a Bearer token.
+   Expect HTTP 200.
+6. Call `list_servers` without login. Expect HTTP 401.
+7. Complete the consent page and identity provider redirect in a real MCP
+   client, then call `list_servers`.
+
+Automated e2e covers this mode against CNCF Dex (fixed static client, JWT
+JWKS or introspection). Remote OAuth Dex coverage (protected-resource metadata
+and Bearer from a direct Dex login) is in the same suite. Do not automate
+GitHub, Google, or Auth0 login in CI.
+
+## Check OIDC Proxy
+
+1. Set `MCP_AUTH_MODE=oidc_proxy` and
+   `MCP_AUTH_OIDC_CONFIG_URL` to the HTTPS
+   `/.well-known/openid-configuration` URL.
+2. Set `MCP_AUTH_CLIENT_ID`, `MCP_AUTH_CLIENT_SECRET`, and `MCP_AUTH_BASE_URL`.
+3. Set `MCP_AUTH_OIDC_AUDIENCE` to this MCP Server's audience unless you set
+   `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true` (opaque access tokens; audience is then
+   the client id).
+4. Set `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true` if access tokens are opaque and
+   the ID token should be verified instead.
+5. Off-loopback, set `MCP_AUTH_JWT_SIGNING_KEY` and TLS as for OAuth Proxy.
+6. Confirm discovery metadata is reachable without a Bearer token, then confirm
+   `list_servers` fails without login and succeeds after the OIDC redirect.
+
+Do not automate this browser login in CI.

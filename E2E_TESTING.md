@@ -26,7 +26,6 @@ The e2e testing environment provides:
 ### Basic Usage
 
 ```bash
-```bash
 # Set up the emulator environment
 make e2e-emulator-setup
 
@@ -35,8 +34,6 @@ make e2e-emulator-start
 
 # Complete e2e test workflow
 make e2e
-
-```
 
 # Stop the emulator
 make e2e-stop
@@ -55,6 +52,10 @@ make e2e-clean
 | `e2e-emulator-logs` | Show emulator logs |
 | `e2e-emulator-stop` | Stop emulator |
 | `e2e-emulator-clean` | Clean up certificates and containers |
+| `e2e-dex-start` | Start CNCF Dex for OAuth Proxy and OIDC Proxy e2e |
+| `e2e-dex-status` | Check Dex status |
+| `e2e-dex-logs` | Show Dex logs |
+| `e2e-dex-stop` | Stop Dex |
 | `e2e` | Run comprehensive e2e tests using pytest (recommended) |
 | `e2e-verbose` | Run e2e tests with verbose output |
 | `e2e-cov` | Run e2e tests with coverage |
@@ -68,11 +69,12 @@ machine, so the tests do not manage real hardware.
 
 Default automated e2e stays **stdio** (`MCP_TRANSPORT=stdio` in `e2e/conftest.py`). stdio does not use MCP HTTP authentication.
 
-HTTP e2e (no live identity provider) is also in `make e2e` / CI:
+HTTP e2e is also in `make e2e` / CI:
 
 - `e2e/test_http_auth.py`: `MCP_TRANSPORT=streamable-http`, `MCP_HTTP_AUTH=false`, loopback — tools work and stderr contains the unauthenticated-HTTP warning.
 - `e2e/test_http_auth.py`: local JWT (`MCP_AUTH_MODE=token` + generated key pair) — unauthenticated HTTP fails; `Authorization: Bearer` can `list_servers`.
 - `e2e/test_http_auth.py`: a real local HTTPS introspection endpoint — private targets are blocked by default; explicit private-IdP trust succeeds; inactive, cross-audience, refresh, redirected, and oversized responses are rejected.
+- `e2e/test_dex_auth.py`: OAuth Proxy, OIDC Proxy, and Remote OAuth against CNCF Dex (`make e2e-dex-start`). Dex has no DCR, so OAuth Proxy uses the static client and lists authorize/token from discovery. Current Dex access tokens are JWTs (`aud` is the client id); tests cover JWKS verification, loopback JWKS SSRF, RFC 7662 introspection, OIDC access-token verification (`MCP_AUTH_OIDC_VERIFY_ID_TOKEN=false`), public protected-resource metadata, and Remote OAuth Bearer from a direct Dex login (no MCP-client DCR). OIDC Proxy ID-token login uses `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true`. Loopback JWKS/introspection need `MCP_AUTH_JWKS_ALLOW_PRIVATE` / `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE`. Marked `pytest -m idp`.
 - `e2e/test_http_auth.py`: strict non-loopback Host/Origin middleware — an invalid Host returns 421, an invalid Origin returns 403, and an allowed Host reaches Bearer authentication (401 without a token).
 
 The HTTP subprocess fixture removes inherited `MCP_AUTH_*`, `MCP_TLS_*`, and
@@ -86,7 +88,7 @@ scopes, JWT issuer and temporal claims, introspection audience/token-type
 binding, custom Streamable HTTP paths, clean server shutdown, and separation of
 MCP Bearer credentials from Redfish requests.
 
-Cloud IdPs (Auth0, GitHub, Keycloak, WorkOS, and similar) are **out of automated e2e**. Manual checklist: [docs/MCP_AUTH_MANUAL_IDP.md](docs/MCP_AUTH_MANUAL_IDP.md). Authentication guide: [docs/MCP_AUTH.md](docs/MCP_AUTH.md). HTTP deployment guide: [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
+Cloud IdPs (Auth0, GitHub, Keycloak, WorkOS, and similar) are **out of automated e2e**. Dex is a local CNCF OpenID provider: it proves discovery, redirects, ID-token verification, and JWKS against this MCP Server, not GitHub or Azure behaviour. Manual checklist: [docs/MCP_AUTH_MANUAL_IDP.md](docs/MCP_AUTH_MANUAL_IDP.md). Authentication guide: [docs/MCP_AUTH.md](docs/MCP_AUTH.md). HTTP deployment guide: [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
 
 ### 1. Pytest-based E2E Tests (Recommended)
 
@@ -175,6 +177,22 @@ export EMULATOR_HOST="127.0.0.1"
 export CONTAINER_NAME="redfish-emulator-e2e"
 ```
 
+### Dex Settings
+
+CNCF Dex is the local identity provider for OAuth Proxy and OIDC Proxy e2e.
+`make e2e` starts it. Dex has no Dynamic Client Registration, so OAuth Proxy
+uses a static client. Loopback JWKS and introspection need
+`MCP_AUTH_JWKS_ALLOW_PRIVATE=true` / `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true`.
+
+```bash
+export DEX_IMAGE="ghcr.io/dexidp/dex:v2.43.1"
+export DEX_HOST="127.0.0.1"
+export DEX_PORT="5556"
+export DEX_ISSUER="https://127.0.0.1:5556/dex"
+export DEX_MCP_PORT="18080"  # MCP listen port; must match Dex redirectURIs
+export DEX_CONTAINER_NAME="dex-e2e"
+```
+
 ### Certificate Settings
 
 Certificate generation can be customized:
@@ -203,11 +221,16 @@ make e2e-emulator-setup
 # Start emulator
 make e2e-emulator-start
 
+# Start Dex (OAuth/OIDC Proxy e2e)
+make e2e-dex-start
+
 # Check status
 make e2e-emulator-status
+make e2e-dex-status
 
 # Test API directly
 curl -k https://127.0.0.1:5000/redfish/v1
+curl -k https://127.0.0.1:5556/dex/.well-known/openid-configuration
 ```
 
 ### Test MCP Server Manually
@@ -262,20 +285,20 @@ The Python test framework is organized into modular components for easy extensio
 The e2e framework is now organized into logical directories by file type and purpose:
 
 ```
-```
 e2e/
 ├── scripts/                           # Infrastructure management (bash)
 │   ├── emulator.sh                   # Docker emulator management
+│   ├── dex.sh                        # CNCF Dex for OAuth/OIDC Proxy e2e
 │   └── generate-cert.sh              # Certificate generation
 ├── config/                           # Configuration files
-│   └── emulator-config.json          # Emulator configuration
+│   ├── emulator-config.json          # Emulator configuration
+│   └── dex.yaml.template             # Dex config template
 ├── conftest.py                       # Pytest fixtures and configuration
 ├── framework.py                      # MCP test utilities (pytest-compatible)
 ├── test_base_functionality.py       # Core functionality tests (discovery, servers)
-└── test_tool_functionality.py       # Tool-specific tests (error handling, advanced features)
-```
-├── certs/                      # Generated certificates (runtime)
-└── __pycache__/               # Python cache (runtime)
+├── test_tool_functionality.py       # Tool-specific tests (error handling, advanced features)
+├── test_http_auth.py                 # HTTP MCP auth (JWT, introspection, Host/Origin)
+└── test_dex_auth.py                  # OAuth/OIDC Proxy and Remote OAuth against Dex
 ```
 
 **Benefits of this organization:**

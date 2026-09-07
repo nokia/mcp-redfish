@@ -83,6 +83,7 @@ JWT examples must use expiring tokens. Introspection examples must include
 `MCP_AUTH_INTROSPECTION_ISSUER` and `MCP_AUTH_INTROSPECTION_AUDIENCE`.
 Private/internal IdPs additionally require the explicit warned setting
 `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true`; never enable it silently.
+Private/loopback JWKS uses `MCP_AUTH_JWKS_ALLOW_PRIVATE=true` the same way.
 Never add logs containing tokens, token claims, passwords, client secrets, key
 contents, required scope names, identity-provider response bodies, or proxy
 URLs. Use stable reason codes at DEBUG for authentication failures.
@@ -135,7 +136,7 @@ All Redfish operations use `tenacity` with configurable retry:
 
 ### E2E Testing
 The project uses DMTF Redfish Interface Emulator for comprehensive testing:
-- **Setup**: `make e2e-emulator-setup` (creates certificates, starts emulator)
+- **Setup**: `make e2e-emulator-setup` (creates certificates, starts emulator); `make e2e-dex-start` for OAuth Proxy and OIDC Proxy e2e
 - **Framework**: `e2e/framework.py` with MCP Inspector CLI v2 integration
 - **Agent tests**: Optional OpenAI API integration for full agent workflows
 

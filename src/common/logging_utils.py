@@ -17,7 +17,8 @@ _AUTH_HEADER_PATTERN = re.compile(
 _BEARER_PATTERN = re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+")
 _BASIC_PATTERN = re.compile(r"(?i)\bbasic\s+[A-Za-z0-9+/=]{8,}")
 _SENSITIVE_QUERY_PATTERN = re.compile(
-    r"(?i)([?&](?:access_token|token|client_secret|password|api_key)=)[^&\s]+"
+    r"(?i)([?&](?:access_token|id_token|refresh_token|token|code|client_secret|"
+    r"password|api_key)=)[^&\s]+"
 )
 _PEM_KEY_PATTERN = re.compile(
     r"-----BEGIN [^-]*(?:PRIVATE|PUBLIC) KEY-----.*?"
@@ -47,6 +48,7 @@ def _is_sensitive_environment_name(name: str) -> bool:
                 "PRIVATE_KEY",
                 "SIGNING_KEY",
                 "ENCRYPTION_KEY",
+                "REDIS_URL",
             )
         )
     )

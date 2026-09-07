@@ -9,8 +9,6 @@ that mode.
 
 **Breaking change:** HTTP MCP transports (`sse`, `streamable-http`) now require authentication. Set `MCP_AUTH_MODE` (and the matching `MCP_AUTH_*` variables), or set `MCP_HTTP_AUTH=false` to keep unauthenticated HTTP. stdio is unchanged. See README and the release notes.
 
-Remote OAuth, OAuth Proxy, and OIDC Proxy are specified in [MCP_AUTH_PLAN.md](./MCP_AUTH_PLAN.md) (Phases 2–4) and are **not implemented** in this release. `MCP_AUTH_MODE` values other than `none` and `token` are rejected.
-
 ## Start here
 
 Choose the row that matches your use:
@@ -21,9 +19,55 @@ Choose the row that matches your use:
 | A temporary local lab needs HTTP and has no token service | Use `MCP_TRANSPORT=streamable-http` and `MCP_HTTP_AUTH=false`. Keep the default loopback address. |
 | A production service already issues JWT access tokens | Use `MCP_AUTH_MODE=token` and `MCP_AUTH_TOKEN_TYPE=jwt`. This is the preferred production option. |
 | A production service issues opaque tokens, not JWTs | Use `MCP_AUTH_MODE=token` and `MCP_AUTH_TOKEN_TYPE=introspection`. The identity provider must offer a token introspection endpoint. |
-| Users must sign in through a browser | This is not supported in this release. Remote OAuth and proxy modes are planned for later phases. |
+| Users must sign in through a browser, and the IdP supports Dynamic Client Registration | Use `MCP_AUTH_MODE=remote_oauth` with the same token verification settings as `token`. |
+| Users must sign in through a browser, and you register a fixed OAuth app (no DCR) | Use `MCP_AUTH_MODE=oauth_proxy`. |
+| Users must sign in through a browser, and the IdP publishes OIDC discovery | Use `MCP_AUTH_MODE=oidc_proxy`. |
 
 For remote HTTP, prefer `streamable-http` instead of `sse`.
+
+## Identity provider requirements
+
+OAuth- and OIDC-based HTTP authentication (`remote_oauth`, `oauth_proxy`, and
+`oidc_proxy`) only works with an identity provider whose tokens this MCP Server
+can **verify on every MCP request**. The server does not trust opaque strings,
+login success alone, or tokens that only the IdP's own API can validate.
+
+Your IdP must provide **one** of these verification paths:
+
+| Path | When to use | What you configure |
+| --- | --- | --- |
+| **Locally verifiable JWT access tokens** | Default for most OIDC/OAuth2 enterprise IdPs | `MCP_AUTH_TOKEN_TYPE=jwt` with `MCP_AUTH_JWT_JWKS_URI` (preferred) or `MCP_AUTH_JWT_PUBLIC_KEY`, plus matching `MCP_AUTH_JWT_ISSUER` and `MCP_AUTH_JWT_AUDIENCE`. For `oidc_proxy`, discovery supplies JWKS; set `MCP_AUTH_OIDC_AUDIENCE` when verifying access tokens (the default). |
+| **Opaque access tokens + introspection** | The IdP issues random bearer strings, not JWTs | `MCP_AUTH_TOKEN_TYPE=introspection` and the full `MCP_AUTH_INTROSPECTION_*` set. The MCP Server POSTs each token to the IdP's RFC 7662 introspection endpoint over HTTPS. |
+| **OIDC ID token instead of access token** | `oidc_proxy` only: access tokens are opaque but the IdP returns a signed JWT `id_token` | `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true`. JWKS comes from OIDC discovery; audience is bound to `MCP_AUTH_CLIENT_ID`. |
+
+**Locally verifiable** means the MCP Server can check the token without calling
+the IdP's product API (for example GitHub's `api.github.com`). Supported JWT
+setups:
+
+- **JWKS (recommended):** HTTPS `jwks_uri` from OIDC discovery or your
+  administrator. Typical signing algorithms include `RS256`, `RS384`, `RS512`,
+  `ES256`, `ES384`, `ES512`, and `PS256`–`PS512`, depending on what the IdP
+  publishes.
+- **Fixed public key:** PEM `-----BEGIN PUBLIC KEY-----` (or certificate) in
+  `MCP_AUTH_JWT_PUBLIC_KEY` when the IdP does not rotate keys through JWKS.
+- **Shared secret (HMAC):** `HS256`, `HS384`, or `HS512` via
+  `MCP_AUTH_JWT_PUBLIC_KEY` only when JWKS is unset; the secret must be at least
+  32 characters. Prefer asymmetric keys and JWKS in production.
+
+The MCP Server must be able to reach the JWKS URL or introspection endpoint over
+HTTPS from its runtime network (corporate proxy and
+`MCP_AUTH_JWKS_ALLOW_PRIVATE` / `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE` are
+documented escape hatches for lab or private IdPs).
+
+**What does not work:** IdPs that issue **only** opaque access tokens with **no**
+RFC 7662 introspection and **no** JWT the MCP Server can verify — for example
+classic GitHub OAuth user tokens (`gho_…`). Those tokens are meant for the IdP's
+own API, not as verifiable credentials for this MCP Server. Manual OAuth app
+registration (the `oauth_proxy` pattern) is fine; the **token format** must still
+match one of the rows above.
+
+`MCP_AUTH_MODE=token` uses the same JWT or introspection rules directly on the
+Bearer token the client sends (no browser login).
 
 ## Important: one valid token gives access to every configured BMC
 
@@ -71,9 +115,6 @@ uses to connect to each managed machine.
 - **SSRF:** Server-Side Request Forgery. An attack that tricks a server into
   sending a request, and sometimes credentials, to an unintended address.
 
-For protocol-level details, see the maintainer-focused
-[authentication plan](./MCP_AUTH_PLAN.md) and
-[security review](./MCP_AUTH_REVIEW.md).
 Listener and network terms are explained in
 [MCP HTTP deployment and listener security](./MCP_HTTP_DEPLOYMENT.md).
 
@@ -247,12 +288,145 @@ that case, set `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true`. The server logs a
 warning because you are explicitly trusting the configured hostname, internal
 DNS, and network routing. HTTPS is still required.
 
+JWKS fetches (JWT `MCP_AUTH_JWT_JWKS_URI` and OIDC Proxy discovery) use the
+same private-address blocklist. Set `MCP_AUTH_JWKS_ALLOW_PRIVATE=true` only
+for a private or loopback identity provider. The server logs a warning.
+
+## Remote OAuth (`MCP_AUTH_MODE=remote_oauth`)
+
+Use this when the identity provider supports Dynamic Client Registration (DCR).
+MCP clients discover this server through `/.well-known/oauth-protected-resource`
+and obtain tokens from the identity provider. This MCP Server still verifies
+those tokens with the same JWT or introspection settings as `MCP_AUTH_MODE=token`.
+
+```bash
+export MCP_TRANSPORT=streamable-http
+export MCP_AUTH_MODE=remote_oauth
+export MCP_AUTH_TOKEN_TYPE=jwt
+export MCP_AUTH_JWT_JWKS_URI=https://idp.example.com/.well-known/jwks.json
+export MCP_AUTH_JWT_ISSUER=https://idp.example.com/
+export MCP_AUTH_JWT_AUDIENCE=mcp-redfish
+export MCP_AUTH_AUTHORIZATION_SERVERS='["https://idp.example.com"]'
+export MCP_AUTH_BASE_URL=https://mcp.example.com
+```
+
+`MCP_AUTH_BASE_URL` is this MCP Server's public origin, not the `/mcp` path.
+Off-loopback it must be `https://`. Loopback `http://127.0.0.1:...` is allowed
+for a local lab.
+
+Those `/.well-known/` metadata routes are public by design. MCP tools still
+require a valid Bearer token.
+
+## OAuth Proxy (`MCP_AUTH_MODE=oauth_proxy`)
+
+Use this when the identity provider does **not** support DCR. Register one
+OAuth application with the provider and point its redirect URI at this MCP
+Server's callback path (`/auth/callback` by default). FastMCP presents a
+DCR-compatible interface to MCP clients and stores upstream tokens.
+
+**Registration and verification are separate.** First, register a fixed OAuth
+application with the IdP and set its redirect URI to this MCP Server's callback
+(the same workflow as a GitHub OAuth App or many enterprise OAuth2 consoles).
+Second, configure how this MCP Server **verifies upstream access tokens** after
+login — JWT or introspection (`MCP_AUTH_JWT_*` or `MCP_AUTH_INTROSPECTION_*`),
+the same rules as `MCP_AUTH_MODE=token`. The registration step does not replace
+token verification.
+
+The IdP must still meet [Identity provider requirements](#identity-provider-requirements).
+For example, GitHub's OAuth app flow fits the registration step, but GitHub user
+tokens are opaque API credentials with no JWKS or RFC 7662 introspection, so
+GitHub is not a supported IdP for this server.
+
+```bash
+export MCP_AUTH_MODE=oauth_proxy
+export MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT=https://idp.example.com/oauth/authorize
+export MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT=https://idp.example.com/oauth/token
+export MCP_AUTH_CLIENT_ID=registered-app-id
+export MCP_AUTH_CLIENT_SECRET=...   # env/file, never argv
+export MCP_AUTH_BASE_URL=https://mcp.example.com
+export MCP_AUTH_JWT_SIGNING_KEY=... # required off-loopback; >= 32 characters
+# Token verification for upstream access tokens (same as MCP_AUTH_MODE=token):
+export MCP_AUTH_JWT_JWKS_URI=https://idp.example.com/.well-known/jwks.json
+export MCP_AUTH_JWT_ISSUER=https://idp.example.com/
+export MCP_AUTH_JWT_AUDIENCE=mcp-redfish
+```
+
+### PKCE forwarding
+
+PKCE (Proof Key for Code Exchange) is an OAuth safety check for browser login.
+The client sends a hashed `code_challenge` when starting login and proves it
+holds the matching secret (`code_verifier`) when exchanging the authorization
+code for tokens.
+
+OAuth Proxy involves **two** login hops:
+
+1. **MCP client → this MCP Server** — the MCP client uses PKCE with the proxy
+   (normal OAuth / DCR).
+2. **This MCP Server → upstream IdP** — the proxy logs in with your registered
+   app (`MCP_AUTH_CLIENT_ID` / secret).
+
+**PKCE forwarding** (`MCP_AUTH_FORWARD_PKCE=true`, the default) means the proxy
+also uses PKCE on hop 2: when the MCP client used PKCE, the proxy generates its
+own verifier/challenge pair for the upstream authorize redirect and token
+exchange. Most IdPs expect or require this (Google, Azure, Dex, and similar).
+Set `MCP_AUTH_FORWARD_PKCE=false` only if the upstream IdP does not support
+PKCE; this project defaults to on and warns against turning it off in
+production. The setting applies to `oauth_proxy` only; `oidc_proxy` always
+uses PKCE and rejects `MCP_AUTH_FORWARD_PKCE=false`.
+
+Production defaults that this project will not silently weaken:
+
+- Consent is on (`MCP_AUTH_REQUIRE_CONSENT=true`). `remember` logs a warning.
+  `false` and `external` are loopback-only break-glass settings.
+- PKCE forwarding is on (`MCP_AUTH_FORWARD_PKCE=true`; see above).
+- MCP client redirect URIs default to
+  `["http://localhost:*","http://127.0.0.1:*"]`. Off-loopback an empty list is
+  refused. Unrestricted hosts such as `*` or `https://*` are refused. Add
+  HTTPS application callbacks explicitly when needed.
+- Off-loopback binds require `MCP_AUTH_JWT_SIGNING_KEY`. Do not rely on a key
+  derived from the client secret.
+
+Single-node storage uses FastMCP's encrypted disk store. Multiple processes
+must set `MCP_AUTH_STORAGE_BACKEND=redis`, `MCP_AUTH_REDIS_URL`, and
+`MCP_AUTH_STORAGE_ENCRYPTION_KEY` (a Fernet key). Redis storage is refused
+without encryption. Install the optional `redis` extra to use this backend.
+
+## OIDC Proxy (`MCP_AUTH_MODE=oidc_proxy`)
+
+Same consent, redirect, signing-key, and storage rules as OAuth Proxy. Endpoints
+come from OIDC discovery instead of being listed individually.
+
+```bash
+export MCP_AUTH_MODE=oidc_proxy
+export MCP_AUTH_OIDC_CONFIG_URL=https://idp.example.com/.well-known/openid-configuration
+export MCP_AUTH_CLIENT_ID=registered-app-id
+export MCP_AUTH_CLIENT_SECRET=...
+export MCP_AUTH_BASE_URL=https://mcp.example.com
+export MCP_AUTH_JWT_SIGNING_KEY=...
+export MCP_AUTH_OIDC_AUDIENCE=https://mcp.example.com
+# Verify the OIDC ID token instead of the access token when the access token is
+# opaque. Audience is then bound to MCP_AUTH_CLIENT_ID:
+# MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true
+```
+
+`MCP_AUTH_OIDC_AUDIENCE` is required when verifying access tokens (the
+default). Without it, a JWT from the same issuer minted for another API
+would be accepted. Set `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true` only when the
+access token is opaque; FastMCP then verifies the ID token and binds
+audience to `MCP_AUTH_CLIENT_ID`.
+
+Discovery and JWKS URLs must be HTTPS. JWKS fetches use FastMCP SSRF protection
+and refuse loopback or private addresses by default. A private or local IdP
+(for example Dex in e2e) must set `MCP_AUTH_JWKS_ALLOW_PRIVATE=true`; the
+server logs a warning. PKCE is always enabled here; `MCP_AUTH_FORWARD_PKCE=false`
+is not supported (see [PKCE forwarding](#pkce-forwarding)).
+
 ## Environment reference
 
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `MCP_HTTP_AUTH` | `true` | MCP client auth on HTTP. Not TLS. Ignored on stdio. |
-| `MCP_AUTH_MODE` | `none` | `none` or `token` in this release. |
+| `MCP_AUTH_MODE` | `none` | `none`, `token`, `remote_oauth`, `oauth_proxy`, or `oidc_proxy`. |
 | `MCP_AUTH_TOKEN_TYPE` | `jwt` | `jwt` or `introspection`. |
 | `MCP_AUTH_TOKEN_LEEWAY_SECONDS` | `60` | Clock skew for JWT `nbf` and `iat`; non-negative integer. |
 | `MCP_AUTH_JWT_JWKS_URI` | unset | HTTPS JWKS URL. |
@@ -268,7 +442,25 @@ DNS, and network routing. HTTPS is still required.
 | `MCP_AUTH_INTROSPECTION_AUDIENCE` | unset | Required; must match response `aud` string/list. |
 | `MCP_AUTH_INTROSPECTION_ALLOWED_TOKEN_TYPES` | `["Bearer","access_token"]` | Non-empty JSON list; refresh tokens are rejected. |
 | `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE` | `false` | Explicitly trust a private IdP’s HTTPS endpoint and internal DNS/routing; warns. |
-| `MCP_AUTH_REQUIRED_SCOPES` | empty | JSON array of strings. Empty = any authenticated token. |
+| `MCP_AUTH_JWKS_ALLOW_PRIVATE` | `false` | Explicitly trust a private or loopback JWKS URL; warns. Lab/private IdPs only. |
+| `MCP_AUTH_REQUIRED_SCOPES` | empty | JSON array of strings. Empty = any authenticated token. On `oauth_proxy`, advertised to MCP clients and forwarded to the IdP; not required as claims on the upstream access token. |
+| `MCP_AUTH_AUTHORIZATION_SERVERS` | unset | JSON array of HTTPS issuer URLs. Required for `remote_oauth`. |
+| `MCP_AUTH_BASE_URL` | unset | Public origin of this MCP Server. Required for OAuth/OIDC modes. |
+| `MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT` | unset | HTTPS. Required for `oauth_proxy`. |
+| `MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT` | unset | HTTPS. Required for `oauth_proxy`. |
+| `MCP_AUTH_OIDC_CONFIG_URL` | unset | HTTPS OIDC discovery URL. Required for `oidc_proxy`. |
+| `MCP_AUTH_OIDC_AUDIENCE` | unset | Required for `oidc_proxy` unless `MCP_AUTH_OIDC_VERIFY_ID_TOKEN=true`. |
+| `MCP_AUTH_OIDC_VERIFY_ID_TOKEN` | `false` | Verify the OIDC ID token instead of the access token. When `true`, audience is the client id. |
+| `MCP_AUTH_CLIENT_ID` | unset | Registered OAuth/OIDC application id. |
+| `MCP_AUTH_CLIENT_SECRET` | unset | Required unless a public PKCE client sets a signing key. |
+| `MCP_AUTH_JWT_SIGNING_KEY` | unset | Required off-loopback for proxy modes. At least 32 characters. |
+| `MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS` | localhost / 127.0.0.1 patterns | JSON list of FastMCP redirect patterns. Unrestricted hosts (`*`, `https://*`) are refused. |
+| `MCP_AUTH_REQUIRE_CONSENT` | `true` | `remember` warns. `false`/`external` are loopback-only. |
+| `MCP_AUTH_FORWARD_PKCE` | `true` | `oauth_proxy` only: forward PKCE to the upstream IdP (see [PKCE forwarding](#pkce-forwarding)). Do not disable in production. Unsupported on `oidc_proxy`. |
+| `MCP_AUTH_REDIRECT_PATH` | `/auth/callback` | Path only. Must match the IdP app registration. |
+| `MCP_AUTH_STORAGE_BACKEND` | `disk` | `disk` or `redis`. Proxy modes only. |
+| `MCP_AUTH_REDIS_URL` | unset | `redis://` or `rediss://`. Required for Redis storage. |
+| `MCP_AUTH_STORAGE_ENCRYPTION_KEY` | unset | Fernet key. Required for Redis storage. |
 
 Listener variables are listed in
 [MCP HTTP deployment and listener security](./MCP_HTTP_DEPLOYMENT.md).
@@ -320,8 +512,9 @@ Set `MCP_REDFISH_LOG_LEVEL=DEBUG` when you need detailed troubleshooting.
 The MCP Server uses these levels:
 
 - `INFO` shows the effective transport, authentication mode, token backend,
-  bind address, TLS source, Host/Origin mode, and counts of configured targets
-  and required scopes.
+  verification source, bind address, TLS source, Host/Origin mode, consent,
+  storage backend, callback path, public origin (scheme and host only), and
+  counts of configured targets and required scopes.
 - `DEBUG` shows stable reason codes for rejected tokens and identity-provider
   network failures.
 - `WARNING` shows explicit unsafe or break-glass choices.
@@ -350,4 +543,8 @@ exits with a non-zero status so a supervisor or Kubernetes can restart it.
 
 ## Manual identity-provider checks
 
-Automated tests use a local JWT key pair and a mocked introspection endpoint. Cloud IdPs are not a CI gate. See [MCP_AUTH_MANUAL_IDP.md](./MCP_AUTH_MANUAL_IDP.md).
+Automated tests use a local JWT key pair, a mocked introspection endpoint, a
+loopback HTTPS OpenID simulator for OAuth Proxy in the integration suite, and
+CNCF Dex for OAuth Proxy, OIDC Proxy, and Remote OAuth e2e (browser login,
+access-token verification, and protected-resource metadata). Cloud IdPs are not
+a CI gate. See [MCP_AUTH_MANUAL_IDP.md](./MCP_AUTH_MANUAL_IDP.md).

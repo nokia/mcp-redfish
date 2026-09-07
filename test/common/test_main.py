@@ -91,6 +91,46 @@ class TestRedfishMCPServerRun(unittest.TestCase):
         mock_run.assert_called_once_with(transport="stdio")
         self.assertIn("http_authentication=not_applicable", "\n".join(logs.output))
 
+    def test_stdio_import_does_not_load_authlib(self):
+        """stdio startup must not import HTTP auth providers (and thus Authlib)."""
+        import subprocess
+        import sys
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parents[2]
+        script = """
+import os
+import sys
+
+os.environ["REDFISH_HOSTS"] = '[{"address": "test-host"}]'
+os.environ["MCP_TRANSPORT"] = "stdio"
+os.environ["MCP_REDFISH_LOG_LEVEL"] = "WARNING"
+for key in list(os.environ):
+    if key.startswith("MCP_AUTH_") or key.startswith("MCP_HTTP_"):
+        os.environ.pop(key)
+
+import src.main  # noqa: F401
+
+if "authlib" in sys.modules:
+    raise SystemExit("authlib was imported on stdio startup")
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "PYTHONPATH": str(repo_root),
+            },
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=result.stderr or result.stdout,
+        )
+
     @patch("src.main.mcp.run")
     def test_run_http_default_auth_exits(self, mock_run):
         """HTTP + default MCP_HTTP_AUTH + MODE=none exits non-zero.

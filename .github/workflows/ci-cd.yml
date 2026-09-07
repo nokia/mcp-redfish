@@ -157,7 +157,7 @@ jobs:
       run: |
         echo "## E2E tests" >> "$GITHUB_STEP_SUMMARY"
         echo "Default job remains **stdio** + Inspector + Redfish emulator." >> "$GITHUB_STEP_SUMMARY"
-        echo "This suite also runs HTTP MCP auth e2e: unauthenticated lab mode, local JWT Bearer, local HTTPS introspection hardening, and strict Host/Origin middleware. Cloud IdPs are not in CI." >> "$GITHUB_STEP_SUMMARY"
+        echo "This suite also runs HTTP MCP auth e2e: unauthenticated lab mode, local JWT Bearer, local HTTPS introspection hardening, OAuth Proxy and OIDC Proxy against CNCF Dex, OIDC Proxy metadata against a loopback OpenID simulator, and strict Host/Origin middleware. Cloud IdPs are not in CI." >> "$GITHUB_STEP_SUMMARY"
         make e2e
 
     - name: Check emulator logs on failure
@@ -165,8 +165,11 @@ jobs:
       run: |
         echo "=== Emulator Logs ==="
         make e2e-emulator-logs || echo "No logs available"
+        echo "=== Dex Logs ==="
+        make e2e-dex-logs || echo "No Dex logs available"
 
     - name: Cleanup e2e environment
       if: always()
       run: |
         make e2e-emulator-stop || true
+        make e2e-dex-stop || true

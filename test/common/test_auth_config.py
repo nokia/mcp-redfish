@@ -2,7 +2,7 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for MCP HTTP authentication configuration (Phase 0 + Phase 1)."""
+"""Unit tests for MCP HTTP authentication configuration."""
 
 from __future__ import annotations
 
@@ -537,7 +537,10 @@ def test_introspection_provider(
     assert provider.inner.client_secret == INTROSPECTION_SECRET
 
 
-def test_consent_false_off_loopback_rejected(auth_env: pytest.MonkeyPatch) -> None:
+def test_consent_false_off_loopback_rejected(
+    auth_env: pytest.MonkeyPatch, rsa_public_key: str
+) -> None:
+    _token_env(auth_env, rsa_public_key)
     auth_env.setenv("MCP_AUTH_MODE", "oauth_proxy")
     auth_env.setenv(
         "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT",
@@ -547,16 +550,19 @@ def test_consent_false_off_loopback_rejected(auth_env: pytest.MonkeyPatch) -> No
     auth_env.setenv("MCP_AUTH_CLIENT_ID", "client")
     auth_env.setenv("MCP_AUTH_CLIENT_SECRET", CLIENT_SECRET)
     auth_env.setenv("MCP_AUTH_JWT_SIGNING_KEY", SIGNING_KEY)
+    auth_env.setenv("MCP_AUTH_BASE_URL", "https://mcp.example.com")
     auth_env.setenv("MCP_AUTH_REQUIRE_CONSENT", "false")
     auth_env.setenv("FASTMCP_HOST", "0.0.0.0")
     auth_env.setenv("MCP_TLS_TERMINATED", "true")
-    with pytest.raises(AuthConfigurationError, match="not implemented"):
+    auth_env.setenv("FASTMCP_HTTP_ALLOWED_HOSTS", '["mcp.example.com"]')
+    with pytest.raises(AuthConfigurationError, match="not allowed off-loopback"):
         validate_auth_for_transport("streamable-http")
 
 
 def test_proxy_signing_key_required_off_loopback(
-    auth_env: pytest.MonkeyPatch,
+    auth_env: pytest.MonkeyPatch, rsa_public_key: str
 ) -> None:
+    _token_env(auth_env, rsa_public_key)
     auth_env.setenv("MCP_AUTH_MODE", "oauth_proxy")
     auth_env.setenv(
         "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT",
@@ -565,15 +571,18 @@ def test_proxy_signing_key_required_off_loopback(
     auth_env.setenv("MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT", "https://idp.example/token")
     auth_env.setenv("MCP_AUTH_CLIENT_ID", "client")
     auth_env.setenv("MCP_AUTH_CLIENT_SECRET", CLIENT_SECRET)
+    auth_env.setenv("MCP_AUTH_BASE_URL", "https://mcp.example.com")
     auth_env.setenv("FASTMCP_HOST", "0.0.0.0")
     auth_env.setenv("MCP_TLS_TERMINATED", "true")
-    with pytest.raises(AuthConfigurationError, match="not implemented"):
+    auth_env.setenv("FASTMCP_HTTP_ALLOWED_HOSTS", '["mcp.example.com"]')
+    with pytest.raises(AuthConfigurationError, match="JWT_SIGNING_KEY"):
         validate_auth_for_transport("streamable-http")
 
 
 def test_empty_redirect_uris_off_loopback_rejected(
-    auth_env: pytest.MonkeyPatch,
+    auth_env: pytest.MonkeyPatch, rsa_public_key: str
 ) -> None:
+    _token_env(auth_env, rsa_public_key)
     auth_env.setenv("MCP_AUTH_MODE", "oauth_proxy")
     auth_env.setenv(
         "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT",
@@ -583,10 +592,12 @@ def test_empty_redirect_uris_off_loopback_rejected(
     auth_env.setenv("MCP_AUTH_CLIENT_ID", "client")
     auth_env.setenv("MCP_AUTH_CLIENT_SECRET", CLIENT_SECRET)
     auth_env.setenv("MCP_AUTH_JWT_SIGNING_KEY", SIGNING_KEY)
+    auth_env.setenv("MCP_AUTH_BASE_URL", "https://mcp.example.com")
     auth_env.setenv("MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS", "[]")
     auth_env.setenv("FASTMCP_HOST", "0.0.0.0")
     auth_env.setenv("MCP_TLS_TERMINATED", "true")
-    with pytest.raises(AuthConfigurationError, match="not implemented"):
+    auth_env.setenv("FASTMCP_HTTP_ALLOWED_HOSTS", '["mcp.example.com"]')
+    with pytest.raises(AuthConfigurationError, match="must not be empty"):
         validate_auth_for_transport("streamable-http")
 
 
@@ -596,11 +607,13 @@ def test_static_token_rejected(auth_env: pytest.MonkeyPatch) -> None:
         load_mcp_auth_config()
 
 
-def test_unimplemented_mode_is_reported_before_its_future_fields(
-    auth_env: pytest.MonkeyPatch,
+def test_remote_oauth_requires_authorization_servers(
+    auth_env: pytest.MonkeyPatch, rsa_public_key: str
 ) -> None:
+    _token_env(auth_env, rsa_public_key)
     auth_env.setenv("MCP_AUTH_MODE", "remote_oauth")
-    with pytest.raises(AuthConfigurationError, match="not implemented"):
+    auth_env.setenv("MCP_AUTH_BASE_URL", "https://mcp.example.com")
+    with pytest.raises(AuthConfigurationError, match="AUTHORIZATION_SERVERS"):
         load_mcp_auth_config()
 
 
@@ -652,9 +665,10 @@ def test_host_origin_protection_default(auth_env: pytest.MonkeyPatch) -> None:
     assert "uvicorn_config" not in kwargs
 
 
-def test_oauth_proxy_not_implemented_on_loopback(
-    auth_env: pytest.MonkeyPatch,
+def test_oauth_proxy_ignored_on_stdio(
+    auth_env: pytest.MonkeyPatch, rsa_public_key: str
 ) -> None:
+    _token_env(auth_env, rsa_public_key)
     auth_env.setenv("MCP_AUTH_MODE", "oauth_proxy")
     auth_env.setenv(
         "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT",
@@ -663,9 +677,11 @@ def test_oauth_proxy_not_implemented_on_loopback(
     auth_env.setenv("MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT", "https://idp.example/token")
     auth_env.setenv("MCP_AUTH_CLIENT_ID", "client")
     auth_env.setenv("MCP_AUTH_CLIENT_SECRET", CLIENT_SECRET)
+    auth_env.setenv("MCP_AUTH_BASE_URL", "http://127.0.0.1:8000")
     assert validate_auth_for_transport("stdio").mode == "none"
-    with pytest.raises(AuthConfigurationError, match="not implemented"):
-        load_mcp_auth_config()
+    _redfish, mcp_config = ConfigValidator.load_config()
+    assert mcp_config.auth is not None
+    assert mcp_config.auth.mode == "none"
 
 
 def test_jwt_algorithm_passed_through(

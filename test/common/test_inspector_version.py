@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from e2e.inspector_version import (
     InspectorVersionConfig,
     latest_version_in_constraint,
-    load_inspector_package_spec,
+    load_inspector_version_config,
     parse_constraint,
     version_satisfies_constraint,
 )
@@ -32,10 +32,14 @@ class TestInspectorVersion(unittest.TestCase):
         self.assertFalse(version_satisfies_constraint("2.3.9", constraint))
         self.assertFalse(version_satisfies_constraint("3.0.0", constraint))
 
-    def test_load_inspector_package_spec(self) -> None:
-        self.assertEqual(
-            load_inspector_package_spec(),
-            "@modelcontextprotocol/inspector@2.4.0",
+    def test_locked_version_satisfies_constraint(self) -> None:
+        config = load_inspector_version_config()
+        self.assertTrue(
+            version_satisfies_constraint(config.locked_version, config.constraint),
+            msg=(
+                f"Locked inspector version {config.locked_version} does not satisfy "
+                f"constraint {config.constraint}"
+            ),
         )
 
     @patch("e2e.inspector_version.fetch_npm_versions")
@@ -60,7 +64,7 @@ class TestCheckInspectorVersionScript(unittest.TestCase):
     def test_check_major_reports_new_major(self, _load_config, _latest_version) -> None:
         import check_inspector_version
 
-        self.assertEqual(check_inspector_version.main([]), 1)
+        self.assertEqual(check_inspector_version.main([]), 0)
         self.assertFalse(Path("-v").exists())
 
     @patch("check_inspector_version.latest_version_on_npm", return_value="3.0.0")
@@ -81,7 +85,7 @@ class TestCheckInspectorVersionScript(unittest.TestCase):
         try:
             self.assertEqual(
                 check_inspector_version.main(["--summary-file", str(summary)]),
-                1,
+                0,
             )
             self.assertTrue(summary.is_file())
             self.assertIn("major-version indicator", summary.read_text())

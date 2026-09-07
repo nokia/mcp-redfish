@@ -256,3 +256,31 @@ def test_fastmcp_introspection_response_body_is_not_logged(
         )
     assert "FastMCP token introspection event." in caplog.text
     assert sensitive_body not in caplog.text
+
+
+def test_fastmcp_oidc_discovery_failure_is_sanitized(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    configure_safe_provider_logging()
+    provider_logger = logging.getLogger("fastmcp.server.auth.oidc_proxy")
+    with caplog.at_level(logging.ERROR, logger="fastmcp.server.auth.oidc_proxy"):
+        provider_logger.error(
+            "Failed to fetch OIDC config from https://idp.example/?client_secret=leak"
+        )
+    assert "FastMCP OIDC discovery failed." in caplog.text
+    assert "client_secret=leak" not in caplog.text
+    assert "idp.example" not in caplog.text
+
+
+def test_fastmcp_oauth_proxy_logs_are_always_sanitized(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    configure_safe_provider_logging()
+    provider_logger = logging.getLogger("fastmcp.server.auth.oauth_proxy")
+    with caplog.at_level(logging.INFO, logger="fastmcp.server.auth.oauth_proxy"):
+        provider_logger.info(
+            "Registered DCR client private-client-identity redirect=http://127.0.0.1/cb?code=oauth-code"
+        )
+    assert "FastMCP OAuth proxy event." in caplog.text
+    assert "private-client-identity" not in caplog.text
+    assert "oauth-code" not in caplog.text

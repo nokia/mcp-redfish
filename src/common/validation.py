@@ -46,13 +46,25 @@ VALID_MCP_AUTH_MODES = [
     "oidc_proxy",
     "static_token",
 ]
-IMPLEMENTED_MCP_AUTH_MODES = ("none", "token")
+IMPLEMENTED_MCP_AUTH_MODES = (
+    "none",
+    "token",
+    "remote_oauth",
+    "oauth_proxy",
+    "oidc_proxy",
+)
 STDIO_MCP_TRANSPORT = "stdio"
 HTTP_MCP_TRANSPORTS = ("streamable-http", "sse")
 DEFAULT_BIND_HOST = "127.0.0.1"
 DEFAULT_BIND_PORT = 8000
 HMAC_MIN_SECRET_LENGTH = 32
 JWT_SIGNING_KEY_MIN_LENGTH = 32
+DEFAULT_ALLOWED_CLIENT_REDIRECT_URIS = [
+    "http://localhost:*",
+    "http://127.0.0.1:*",
+]
+UNSAFE_REDIRECT_URI_SCHEMES = ("javascript:", "data:", "file:", "vbscript:")
+VALID_STORAGE_BACKENDS = ("disk", "redis")
 
 
 @dataclass
@@ -182,6 +194,7 @@ class MCPAuthConfig:
         default_factory=lambda: ["bearer", "access_token"]
     )
     introspection_allow_private: bool = False
+    jwks_allow_private: bool = False
     authorization_servers: list[str] | None = None
     upstream_authorization_endpoint: str | None = None
     upstream_token_endpoint: str | None = None
@@ -195,10 +208,17 @@ class MCPAuthConfig:
     require_consent: str = "true"
     forward_pkce: bool = True
     redirect_path: str = "/auth/callback"
+    oidc_verify_id_token: bool = False
+    storage_backend: Literal["disk", "redis"] = "disk"
+    redis_url: str | None = field(default=None, repr=False)
 
     def is_real_mode(self) -> bool:
         """Return True when a FastMCP verifier/provider mode is selected."""
         return self.mode not in ("none",)
+
+    def is_proxy_mode(self) -> bool:
+        """Return True when FastMCP mints tokens and stores upstream credentials."""
+        return self.mode in ("oauth_proxy", "oidc_proxy")
 
     def has_in_process_tls(self) -> bool:
         """Return True when both server cert and key paths are configured."""
@@ -206,12 +226,27 @@ class MCPAuthConfig:
 
     def uses_ssrf_protected_fetch(self) -> bool:
         """Return whether this configuration performs an SSRF-checked fetch."""
-        return bool(
-            self.jwt_jwks_uri
-            or (
-                self.token_type == "introspection"  # nosec B105
-                and not self.introspection_allow_private
-            )
+        jwks_fetch = (bool(self.jwt_jwks_uri) or self.mode == "oidc_proxy") and (
+            not self.jwks_allow_private
+        )
+        introspection_fetch = (
+            self.token_type == "introspection"  # nosec B105
+            and not self.introspection_allow_private
+        )
+        return bool(jwks_fetch or introspection_fetch)
+
+    def consent_for_fastmcp(self) -> bool | Literal["remember", "external"]:
+        """Map MCP_AUTH_REQUIRE_CONSENT to FastMCP's constructor value."""
+        if self.require_consent == "true":
+            return True
+        if self.require_consent == "false":
+            return False
+        if self.require_consent == "remember":
+            return "remember"
+        if self.require_consent == "external":
+            return "external"
+        raise AuthConfigurationError(
+            "MCP_AUTH_REQUIRE_CONSENT must be true, false, remember, or external"
         )
 
 
@@ -535,13 +570,33 @@ def warn_if_world_readable_key(keyfile: str) -> None:
         )
 
 
-def _validate_jwt_fields(auth: MCPAuthConfig, *, require_issuer_audience: bool) -> None:
-    if auth.jwt_algorithm is not None and auth.jwt_algorithm.lower() == "none":
+def _reject_jwt_algorithm_none(algorithm: str | None) -> None:
+    """Refuse the JWT ``none`` algorithm in every mode that can pass it through."""
+    if algorithm is not None and algorithm.strip().lower() == "none":
         raise AuthConfigurationError("MCP_AUTH_JWT_ALGORITHM none is not allowed")
 
+
+def _redirect_pattern_host(pattern: str) -> str:
+    """Return the host part of a FastMCP redirect pattern.
+
+    Port wildcards such as ``http://localhost:*`` keep a real hostname.
+    Unrestricted hosts (``*``, ``https://*``) collapse to ``*``.
+    """
+    rest = pattern.split("://", 1)[-1]
+    hostport = rest.split("/", 1)[0]
+    if hostport.startswith("["):
+        end = hostport.find("]")
+        if end != -1:
+            return hostport[1:end]
+    if hostport.count(":") == 1:
+        return hostport.rsplit(":", 1)[0]
+    return hostport
+
+
+def _validate_jwt_fields(auth: MCPAuthConfig, *, require_issuer_audience: bool) -> None:
+    _reject_jwt_algorithm_none(auth.jwt_algorithm)
+
     algorithm = auth.jwt_algorithm or "RS256"
-    if algorithm.lower() == "none":
-        raise AuthConfigurationError("MCP_AUTH_JWT_ALGORITHM none is not allowed")
 
     if require_issuer_audience:
         if not auth.jwt_issuer:
@@ -619,8 +674,93 @@ def _validate_token_backend(auth: MCPAuthConfig) -> None:
         raise AuthConfigurationError("MCP_AUTH_TOKEN_TYPE must be jwt or introspection")
 
 
+def _validate_redirect_uri_patterns(patterns: list[str]) -> None:
+    for index, pattern in enumerate(patterns):
+        normalized = pattern.strip()
+        if not normalized:
+            raise AuthConfigurationError(
+                "MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS must not contain empty entries"
+            )
+        lowered = normalized.casefold()
+        if lowered.startswith(UNSAFE_REDIRECT_URI_SCHEMES):
+            raise AuthConfigurationError(
+                "MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS["
+                f"{index}] must not use an unsafe URI scheme"
+            )
+        host = _redirect_pattern_host(normalized)
+        if not host or any(char in host for char in ("*", "?", "[")):
+            raise AuthConfigurationError(
+                "MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS["
+                f"{index}] must not use an unrestricted host pattern"
+            )
+
+
+def _validate_redis_url(value: str) -> None:
+    parsed = urlparse(value)
+    if parsed.scheme not in ("redis", "rediss") or not parsed.hostname:
+        raise AuthConfigurationError(
+            "MCP_AUTH_REDIS_URL must be a redis:// or rediss:// URL"
+        )
+
+
+def _validate_storage_encryption_key(value: str) -> None:
+    try:
+        from cryptography.fernet import Fernet
+    except ImportError as e:
+        raise AuthConfigurationError(
+            "MCP_AUTH_STORAGE_ENCRYPTION_KEY requires the cryptography package"
+        ) from e
+    try:
+        Fernet(value.encode())
+    except (ValueError, TypeError) as e:
+        raise AuthConfigurationError(
+            "MCP_AUTH_STORAGE_ENCRYPTION_KEY must be a Fernet key"
+        ) from e
+
+
+def _validate_storage_backend(auth: MCPAuthConfig) -> None:
+    if auth.storage_backend not in VALID_STORAGE_BACKENDS:
+        raise AuthConfigurationError("MCP_AUTH_STORAGE_BACKEND must be disk or redis")
+    if not auth.is_proxy_mode():
+        if (
+            auth.storage_backend != "disk"
+            or auth.storage_encryption_key
+            or auth.redis_url
+        ):
+            raise AuthConfigurationError(
+                "MCP_AUTH_STORAGE_BACKEND, MCP_AUTH_REDIS_URL, and "
+                "MCP_AUTH_STORAGE_ENCRYPTION_KEY are only valid for "
+                "oauth_proxy and oidc_proxy"
+            )
+        return
+    if auth.storage_backend == "disk":
+        if auth.redis_url:
+            raise AuthConfigurationError(
+                "MCP_AUTH_REDIS_URL is only valid with MCP_AUTH_STORAGE_BACKEND=redis"
+            )
+        if auth.storage_encryption_key:
+            raise AuthConfigurationError(
+                "MCP_AUTH_STORAGE_ENCRYPTION_KEY is only used with "
+                "MCP_AUTH_STORAGE_BACKEND=redis; the default disk store is "
+                "already encrypted from MCP_AUTH_JWT_SIGNING_KEY"
+            )
+        return
+    if not auth.redis_url:
+        raise AuthConfigurationError(
+            "MCP_AUTH_REDIS_URL is required when MCP_AUTH_STORAGE_BACKEND=redis"
+        )
+    _validate_redis_url(auth.redis_url)
+    if not auth.storage_encryption_key:
+        raise AuthConfigurationError(
+            "MCP_AUTH_STORAGE_ENCRYPTION_KEY is required when "
+            "MCP_AUTH_STORAGE_BACKEND=redis so upstream tokens are not stored "
+            "in plaintext"
+        )
+    _validate_storage_encryption_key(auth.storage_encryption_key)
+
+
 def _validate_proxy_bind_rules(auth: MCPAuthConfig, bind_host: str) -> None:
-    if auth.mode not in ("oauth_proxy", "oidc_proxy"):
+    if not auth.is_proxy_mode():
         return
     loopback = is_loopback_bind(bind_host)
     if not loopback and not auth.jwt_signing_key:
@@ -644,18 +784,45 @@ def _validate_proxy_bind_rules(auth: MCPAuthConfig, bind_host: str) -> None:
         raise AuthConfigurationError(
             "MCP_AUTH_ALLOWED_CLIENT_REDIRECT_URIS must not be empty off-loopback"
         )
+    if auth.mode == "oidc_proxy" and not auth.forward_pkce:
+        raise AuthConfigurationError(
+            "MCP_AUTH_FORWARD_PKCE=false is not supported with MCP_AUTH_MODE=oidc_proxy"
+        )
+
+
+def _require_oauth_base_url(auth: MCPAuthConfig) -> None:
+    if not auth.base_url:
+        raise AuthConfigurationError("MCP_AUTH_BASE_URL is required")
+    _require_https_url(auth.base_url, "MCP_AUTH_BASE_URL", allow_loopback_http=True)
+
+
+def _validate_proxy_client(auth: MCPAuthConfig) -> None:
+    if not auth.client_id:
+        raise AuthConfigurationError("MCP_AUTH_CLIENT_ID is required")
+    if not auth.client_secret and not auth.jwt_signing_key:
+        raise AuthConfigurationError(
+            "MCP_AUTH_CLIENT_SECRET is required unless a public PKCE client "
+            "sets MCP_AUTH_JWT_SIGNING_KEY"
+        )
+    if auth.allowed_client_redirect_uris is None:
+        auth.allowed_client_redirect_uris = list(DEFAULT_ALLOWED_CLIENT_REDIRECT_URIS)
+    _validate_redirect_uri_patterns(auth.allowed_client_redirect_uris)
+    _validate_storage_backend(auth)
 
 
 def _validate_mode_fields(auth: MCPAuthConfig) -> None:
     if auth.mode == "none":
+        _validate_storage_backend(auth)
         return
     _validate_ssrf_trust_proxy(auth)
     if auth.mode == "static_token":
         raise AuthConfigurationError(
             "MCP_AUTH_MODE=static_token is not supported. Use MCP_AUTH_MODE=token."
         )
-    if auth.mode in ("token", "remote_oauth"):
+    if auth.mode in ("token", "remote_oauth", "oauth_proxy"):
         _validate_token_backend(auth)
+    if auth.mode == "token":
+        _validate_storage_backend(auth)
     if auth.mode == "remote_oauth":
         if not auth.authorization_servers:
             raise AuthConfigurationError(
@@ -663,9 +830,8 @@ def _validate_mode_fields(auth: MCPAuthConfig) -> None:
             )
         for index, server in enumerate(auth.authorization_servers):
             _require_https_url(server, f"MCP_AUTH_AUTHORIZATION_SERVERS[{index}]")
-        if not auth.base_url:
-            raise AuthConfigurationError("MCP_AUTH_BASE_URL is required")
-        _require_https_url(auth.base_url, "MCP_AUTH_BASE_URL", allow_loopback_http=True)
+        _require_oauth_base_url(auth)
+        _validate_storage_backend(auth)
     if auth.mode == "oauth_proxy":
         if not auth.upstream_authorization_endpoint:
             raise AuthConfigurationError(
@@ -680,32 +846,32 @@ def _validate_mode_fields(auth: MCPAuthConfig) -> None:
         _require_https_url(
             auth.upstream_token_endpoint, "MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT"
         )
-        if not auth.client_id:
-            raise AuthConfigurationError("MCP_AUTH_CLIENT_ID is required")
-        if not auth.client_secret and not auth.jwt_signing_key:
-            raise AuthConfigurationError(
-                "MCP_AUTH_CLIENT_SECRET is required unless a public PKCE client "
-                "sets MCP_AUTH_JWT_SIGNING_KEY"
-            )
-        if auth.base_url:
-            _require_https_url(
-                auth.base_url, "MCP_AUTH_BASE_URL", allow_loopback_http=True
-            )
+        _require_oauth_base_url(auth)
+        _validate_proxy_client(auth)
     if auth.mode == "oidc_proxy":
         if not auth.oidc_config_url:
             raise AuthConfigurationError("MCP_AUTH_OIDC_CONFIG_URL is required")
         _require_https_url(auth.oidc_config_url, "MCP_AUTH_OIDC_CONFIG_URL")
-        if not auth.client_id:
-            raise AuthConfigurationError("MCP_AUTH_CLIENT_ID is required")
-        if not auth.client_secret and not auth.jwt_signing_key:
+        _reject_jwt_algorithm_none(auth.jwt_algorithm)
+        if auth.jwt_algorithm and auth.jwt_algorithm.upper().startswith("HS"):
             raise AuthConfigurationError(
-                "MCP_AUTH_CLIENT_SECRET is required unless a public PKCE client "
-                "sets MCP_AUTH_JWT_SIGNING_KEY"
+                "HMAC (HS*) algorithms cannot be used with MCP_AUTH_MODE=oidc_proxy"
             )
-        if auth.base_url:
-            _require_https_url(
-                auth.base_url, "MCP_AUTH_BASE_URL", allow_loopback_http=True
+        if not auth.oidc_verify_id_token and not auth.oidc_audience:
+            raise AuthConfigurationError(
+                "MCP_AUTH_OIDC_AUDIENCE is required when "
+                "MCP_AUTH_OIDC_VERIFY_ID_TOKEN=false so access tokens are bound "
+                "to this MCP Server"
             )
+        _require_oauth_base_url(auth)
+        _validate_proxy_client(auth)
+
+
+def _parse_storage_backend() -> Literal["disk", "redis"]:
+    raw = os.getenv("MCP_AUTH_STORAGE_BACKEND", "disk").strip().lower()
+    if raw not in VALID_STORAGE_BACKENDS:
+        raise AuthConfigurationError("MCP_AUTH_STORAGE_BACKEND must be disk or redis")
+    return raw  # type: ignore[return-value]
 
 
 def load_mcp_auth_config() -> MCPAuthConfig:
@@ -719,8 +885,8 @@ def load_mcp_auth_config() -> MCPAuthConfig:
         )
     if mode_raw not in IMPLEMENTED_MCP_AUTH_MODES:
         raise AuthConfigurationError(
-            f"MCP_AUTH_MODE={mode_raw} is not implemented in this release. "
-            "Use MCP_AUTH_MODE=token, or see docs/MCP_AUTH_PLAN.md for later phases."
+            f"MCP_AUTH_MODE={mode_raw} is not supported. Use one of: "
+            f"{list(IMPLEMENTED_MCP_AUTH_MODES)}."
         )
 
     token_type_raw = os.getenv("MCP_AUTH_TOKEN_TYPE", "jwt").strip().lower()
@@ -792,6 +958,7 @@ def load_mcp_auth_config() -> MCPAuthConfig:
         introspection_allow_private=_get_auth_bool(
             "MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE", False
         ),
+        jwks_allow_private=_get_auth_bool("MCP_AUTH_JWKS_ALLOW_PRIVATE", False),
         authorization_servers=_parse_json_string_list("MCP_AUTH_AUTHORIZATION_SERVERS"),
         upstream_authorization_endpoint=os.getenv(
             "MCP_AUTH_UPSTREAM_AUTHORIZATION_ENDPOINT"
@@ -799,7 +966,7 @@ def load_mcp_auth_config() -> MCPAuthConfig:
         or None,
         upstream_token_endpoint=os.getenv("MCP_AUTH_UPSTREAM_TOKEN_ENDPOINT") or None,
         oidc_config_url=os.getenv("MCP_AUTH_OIDC_CONFIG_URL") or None,
-        oidc_audience=os.getenv("MCP_AUTH_OIDC_AUDIENCE") or None,
+        oidc_audience=(os.getenv("MCP_AUTH_OIDC_AUDIENCE") or "").strip() or None,
         client_id=os.getenv("MCP_AUTH_CLIENT_ID") or None,
         client_secret=os.getenv("MCP_AUTH_CLIENT_SECRET") or None,
         jwt_signing_key=os.getenv("MCP_AUTH_JWT_SIGNING_KEY") or None,
@@ -810,6 +977,9 @@ def load_mcp_auth_config() -> MCPAuthConfig:
         require_consent=consent_raw,
         forward_pkce=_get_auth_bool("MCP_AUTH_FORWARD_PKCE", True),
         redirect_path=redirect_path,
+        oidc_verify_id_token=_get_auth_bool("MCP_AUTH_OIDC_VERIFY_ID_TOKEN", False),
+        storage_backend=_parse_storage_backend(),
+        redis_url=os.getenv("MCP_AUTH_REDIS_URL") or None,
     )
 
     if auth.tls_certfile:

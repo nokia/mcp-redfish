@@ -15,7 +15,6 @@ import time
 import warnings
 
 from . import tools  # noqa: F401 - Import tools to register them with MCP server
-from .common.auth import apply_provider, emit_startup_logs, http_run_kwargs
 from .common.config import MCP_CONFIG, MCP_TRANSPORT, REDFISH_CONFIG
 from .common.discovery import SSDPDiscovery
 from .common.logging_utils import configure_sensitive_data_filter
@@ -114,6 +113,8 @@ class RedfishMCPServer:
                 )
                 mcp.run(transport=MCP_TRANSPORT)
                 return
+
+            from .common.auth import apply_provider, emit_startup_logs, http_run_kwargs
 
             configured_auth = (
                 MCP_CONFIG.auth if MCP_CONFIG.transport == MCP_TRANSPORT else None

@@ -22,18 +22,33 @@ That last case also let `MCP_TRANSPORT=http` (a transport name FastMCP accepts) 
 
 - Fail-closed MCP HTTP authentication (Phase 0) with explicit bind (`FASTMCP_HOST` unset → `127.0.0.1`) and listen-socket TLS (`MCP_TLS_CERTFILE`/`MCP_TLS_KEYFILE` or `MCP_TLS_TERMINATED`).
 - Token verification (Phase 1): `JWTVerifier` (JWKS or public key, issuer and audience required) and `IntrospectionTokenVerifier`.
+- Remote OAuth (Phase 2): `RemoteAuthProvider` wrapping the Phase 1 verifier, with public protected-resource metadata.
+- OAuth Proxy (Phase 3) and OIDC Proxy (Phase 4): FastMCP proxy providers with consent on, PKCE on, redirect allowlists, required off-loopback signing keys, and encrypted Redis when more than one process shares storage.
 - Authentication guide: [docs/MCP_AUTH.md](docs/MCP_AUTH.md). HTTP deployment
   and listener guide: [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
   Manual IdP checklist: [docs/MCP_AUTH_MANUAL_IDP.md](docs/MCP_AUTH_MANUAL_IDP.md).
 - HTTP e2e coverage for `MCP_HTTP_AUTH=false` (warning + tools) and local JWT Bearer (unauthenticated call fails; authenticated `list_servers` works). Default e2e remains stdio.
+- In-process HTTPS OpenID simulator for OAuth Proxy login in the integration
+  suite (DCR, PKCE, code exchange) and OIDC Proxy SSRF/discovery checks.
+  OAuth/OIDC/Remote OAuth HTTP e2e login and metadata are against CNCF Dex.
+  Cloud IdPs remain a manual checklist.
+- CNCF Dex in e2e (`make e2e-dex-start`) for OAuth Proxy (fixed app, JWT JWKS
+  or introspection of the Dex access token), OIDC Proxy (discovery plus
+  ID-token or access-token verification), and Remote OAuth (protected-resource
+  metadata plus Dex JWT Bearer without MCP-client DCR). Loopback JWKS and
+  introspection require the warned `MCP_AUTH_JWKS_ALLOW_PRIVATE` /
+  `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE` settings. Dex requires the `openid`
+  authorize scope; `MCP_AUTH_REQUIRED_SCOPES` on `oauth_proxy` is advertised
+  to MCP clients rather than required as a JWT claim.
 - Startup refuses `*` in `FASTMCP_HTTP_ALLOWED_HOSTS`/`FASTMCP_HTTP_ALLOWED_ORIGINS`, which would disable the Host/Origin guard that protects HTTP transports from DNS rebinding. Checked against the effective FastMCP settings, so a value supplied through `FASTMCP_ENV_FILE` is caught too. Joins the existing refusal of `FASTMCP_SERVER_AUTH*`. See [docs/MCP_HTTP_DEPLOYMENT.md](docs/MCP_HTTP_DEPLOYMENT.md).
 - `FASTMCP_SSRF_TRUST_PROXY=true` is supported for deployments that can only reach their identity provider through an enterprise proxy, and is validated rather than refused: enabling it without `HTTPS_PROXY` or `ALL_PROXY` now aborts at startup, because FastMCP would otherwise refuse every JWKS and OAuth metadata fetch at the first token verification. Startup logs a warning naming the proxy variable in use, never its value. The default (`ssrf_safe=True` with DNS resolution and the address blocklist) already works behind a proxy and remains preferred; see the new "Reaching the identity provider through an enterprise proxy" section of [docs/MCP_AUTH.md](docs/MCP_AUTH.md).
-- Security review of the authentication work: [docs/MCP_AUTH_REVIEW.md](docs/MCP_AUTH_REVIEW.md).
 - Post-verification token policy around FastMCP providers: JWTs now require
   `exp` and enforce `nbf`/future `iat`; introspection requires matching issuer,
   audience, and access-token type.
 - SSRF-safe, DNS-pinned introspection POSTs with explicit
   `MCP_AUTH_INTROSPECTION_ALLOW_PRIVATE=true` for deliberately private IdPs.
+  JWKS fetches have the matching warned `MCP_AUTH_JWKS_ALLOW_PRIVATE=true`
+  setting for private or loopback JWKS (OIDC Proxy and JWT JWKS).
 - Strict Host/Origin protection by default on non-loopback Streamable HTTP
   binds, with exact `FASTMCP_HTTP_ALLOWED_HOSTS`.
 
@@ -57,6 +72,11 @@ That last case also let `MCP_TRANSPORT=http` (a transport name FastMCP accepts) 
   provide stable token-rejection and identity-provider egress reason codes.
   FastMCP provider logs are sanitized so tokens, claims, credentials, response
   bodies, key contents, scope names, and proxy URLs are not emitted.
+- `oidc_proxy` requires `MCP_AUTH_OIDC_AUDIENCE` when verifying access tokens,
+  refuses `MCP_AUTH_JWT_ALGORITHM=none`, and refuses unrestricted OAuth
+  redirect hosts (`*` / `https://*`). Startup logs name OIDC discovery as the
+  verification source and the public origin without query or userinfo.
+  Provider construction errors include `error_type` without URLs or secrets.
 
 ### GitHub Release notes (draft)
 

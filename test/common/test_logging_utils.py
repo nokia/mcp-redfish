@@ -24,6 +24,8 @@ def test_redacts_headers_queries_keys_and_configured_secrets(
         "Authorization: Bearer token-value "
         "Basic dXNlcjpwYXNz "
         "https://example.test/path?access_token=query-token&ok=true "
+        "https://idp.example/cb?code=oauth-code&id_token=id-token-value "
+        "&refresh_token=refresh-token-value "
         "bmc-password-value "
         "http://proxy-user:proxy-password@example.com:3128 "
         "-----BEGIN PRIVATE KEY-----\nprivate-key-value\n"
@@ -36,6 +38,9 @@ def test_redacts_headers_queries_keys_and_configured_secrets(
         "token-value",
         "dXNlcjpwYXNz",
         "query-token",
+        "oauth-code",
+        "id-token-value",
+        "refresh-token-value",
         "bmc-password-value",
         "proxy-password",
         "private-key-value",

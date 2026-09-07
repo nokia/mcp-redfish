@@ -23,7 +23,7 @@ CONTAINER_RUNTIME ?= $(shell \
 DOCKER_TAG ?= $(CONTAINER_TAG)
 DOCKER_IMAGE ?= $(CONTAINER_IMAGE)
 
-.PHONY: help install dev install-dev install-test test test-unit test-e2e test-all test-cov test-cov-all lint format format-check type-check security all-checks check pre-commit-install pre-commit-update pre-commit-run run-stdio run-sse run-streamable-http inspect container-build container-test container-run clean ci-test ci-quality ci-security ci-container ci-all e2e-emulator-setup e2e-emulator-start e2e-emulator-stop e2e e2e-verbose e2e-cov e2e-emulator-status e2e-emulator-logs e2e-emulator-clean
+.PHONY: help install dev install-dev install-test test test-unit test-e2e test-all test-cov test-cov-all lint format format-check type-check security all-checks check pre-commit-install pre-commit-update pre-commit-run run-stdio run-sse run-streamable-http inspect container-build container-test container-run clean ci-test ci-quality ci-security ci-container ci-all e2e-emulator-setup e2e-emulator-start e2e-emulator-stop e2e e2e-verbose e2e-cov e2e-emulator-status e2e-emulator-logs e2e-emulator-clean e2e-dex-start e2e-dex-stop e2e-dex-status e2e-dex-logs
 
 # Default target
 help: ## Show this help message
@@ -70,7 +70,11 @@ help: ## Show this help message
 	@echo "  e2e-emulator-status Check emulator status"
 	@echo "  e2e-emulator-logs  Show emulator logs"
 	@echo "  e2e-emulator-clean Clean up emulator environment"
-	@echo "  e2e                Run e2e tests (requires emulator)"
+	@echo "  e2e-dex-start      Start CNCF Dex for OAuth/OIDC Proxy e2e"
+	@echo "  e2e-dex-stop       Stop Dex"
+	@echo "  e2e-dex-status     Check Dex status"
+	@echo "  e2e-dex-logs       Show Dex logs"
+	@echo "  e2e                Run e2e tests (requires emulator and Dex)"
 	@echo "  e2e-verbose        Run e2e tests with verbose output"
 	@echo "  e2e-cov            Run e2e tests with coverage"
 	@echo ""
@@ -232,18 +236,31 @@ e2e-emulator-status: ## Check emulator status
 e2e-emulator-logs: ## Show emulator logs
 	./e2e/scripts/emulator.sh logs
 
-e2e: install-test e2e-emulator-start ## Run e2e tests
+e2e-dex-start: e2e-emulator-setup ## Start CNCF Dex for OAuth/OIDC Proxy e2e
+	./e2e/scripts/dex.sh start
+
+e2e-dex-stop: ## Stop Dex
+	./e2e/scripts/dex.sh stop
+
+e2e-dex-status: ## Check Dex status
+	./e2e/scripts/dex.sh status
+
+e2e-dex-logs: ## Show Dex logs
+	./e2e/scripts/dex.sh logs
+
+e2e: install-test e2e-emulator-start e2e-dex-start ## Run e2e tests
 	uv run pytest -v e2e/
 
-e2e-verbose: install-test e2e-emulator-start ## Run e2e tests (verbose output)
+e2e-verbose: install-test e2e-emulator-start e2e-dex-start ## Run e2e tests (verbose output)
 	uv run pytest -vv -s e2e/
 
-e2e-cov: install-test e2e-emulator-start ## Run e2e tests with coverage (informational; use test-cov-all for enforced src coverage)
+e2e-cov: install-test e2e-emulator-start e2e-dex-start ## Run e2e tests with coverage (informational; use test-cov-all for enforced src coverage)
 	uv run pytest --cov=src --cov-report=xml --cov-report=term-missing --cov-fail-under=0 e2e/
 
-e2e-emulator-clean: e2e-emulator-stop ## Clean up emulator environment
+e2e-emulator-clean: e2e-emulator-stop e2e-dex-stop ## Clean up emulator environment
 	@echo "Cleaning up emulator environment..."
 	rm -rf e2e/certs/ 2>/dev/null || true
+	rm -f e2e/config/dex.generated.yaml 2>/dev/null || true
 	$(CONTAINER_RUNTIME) rmi -f dmtf/redfish-interface-emulator:latest 2>/dev/null || true
 	@echo "✓ Emulator environment cleaned"
 

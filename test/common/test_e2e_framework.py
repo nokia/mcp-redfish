@@ -4,7 +4,7 @@
 
 """Unit tests for e2e result classification used by negative assertions."""
 
-from e2e.framework import ToolCallResult
+from e2e.framework import ToolCallResult, build_inspector_command
 from e2e.test_http_auth import _clear_http_auth_env
 
 
@@ -26,6 +26,21 @@ def test_infrastructure_failure_detects_timeout_and_connection_errors() -> None:
 
 def test_tool_level_error_is_not_infrastructure_failure() -> None:
     assert not _result("Unknown tool: non_existent_tool").is_infrastructure_failure()
+
+
+def test_build_inspector_command_sets_pythonwarnings_ignore() -> None:
+    cmd = build_inspector_command(
+        ["uv", "run", "python", "-m", "src.main"],
+        {"REDFISH_HOSTS": '[{"address":"127.0.0.1"}]'},
+        ["--format", "json", "--method", "tools/list"],
+    )
+    assert "-e" in cmd
+    env_pairs = [
+        cmd[index + 1]
+        for index, token in enumerate(cmd)
+        if token == "-e" and index + 1 < len(cmd)
+    ]
+    assert "PYTHONWARNINGS=ignore" in env_pairs
 
 
 def test_http_auth_e2e_environment_is_self_contained() -> None:

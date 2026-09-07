@@ -20,6 +20,7 @@ from typing import Any, Literal
 
 import httpx
 from fastmcp.server.auth import AccessToken, AuthProvider
+from fastmcp.server.auth.auth import TokenVerifier
 from fastmcp.server.auth.ssrf import format_ip_for_url, validate_url
 from starlette.routing import Route
 
@@ -51,6 +52,21 @@ class _SafeProviderLogFilter(logging.Filter):
                 safe_message = "FastMCP token introspection event."
         elif record.name.endswith(".ssrf"):
             safe_message = "FastMCP identity-provider egress security event."
+        elif record.name.endswith(".oidc_proxy"):
+            if record.levelno >= logging.WARNING or any(
+                marker in message for marker in ("fail", "error", "unable", "invalid")
+            ):
+                safe_message = "FastMCP OIDC discovery failed."
+            else:
+                safe_message = "FastMCP OIDC discovery event."
+        elif record.name.endswith(".oauth_proxy") or ".oauth_proxy." in record.name:
+            if any(
+                marker in message
+                for marker in ("fail", "error", "denied", "invalid", "reject")
+            ):
+                safe_message = "FastMCP OAuth proxy rejected a request."
+            else:
+                safe_message = "FastMCP OAuth proxy event."
         else:
             return True
 
@@ -65,6 +81,9 @@ def configure_safe_provider_logging() -> None:
         "fastmcp.server.auth.providers.jwt",
         "fastmcp.server.auth.providers.introspection",
         "fastmcp.server.auth.ssrf",
+        "fastmcp.server.auth.oidc_proxy",
+        "fastmcp.server.auth.oauth_proxy",
+        "fastmcp.server.auth.oauth_proxy.proxy",
     ):
         provider_logger = logging.getLogger(name)
         if not any(
@@ -191,7 +210,7 @@ def harden_access_token(
     return token
 
 
-class HardenedTokenVerifier(AuthProvider):
+class HardenedTokenVerifier(TokenVerifier):
     """Compose an official FastMCP provider with project claim policy."""
 
     def __init__(self, inner: AuthProvider, policy: TokenHardeningPolicy) -> None:
@@ -202,6 +221,13 @@ class HardenedTokenVerifier(AuthProvider):
         )
         self.inner = inner
         self.policy = policy
+
+    @property
+    def scopes_supported(self) -> list[str]:
+        inner_scopes = getattr(self.inner, "scopes_supported", None)
+        if inner_scopes is not None:
+            return list(inner_scopes)
+        return self.required_scopes or []
 
     async def verify_token(self, token: str) -> AccessToken | None:
         verified = await self.inner.verify_token(token)

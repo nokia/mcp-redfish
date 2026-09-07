@@ -50,6 +50,61 @@ def mcp_server_env(emulator_config: dict[str, str]) -> dict[str, str]:
 
 
 @pytest.fixture(scope="session")
+def dex_config() -> dict[str, str]:
+    """CNCF Dex endpoints used by OAuth/OIDC Proxy e2e tests."""
+    host = os.environ.get("DEX_HOST", "127.0.0.1")
+    port = os.environ.get("DEX_PORT", "5556")
+    issuer = os.environ.get("DEX_ISSUER", f"https://{host}:{port}/dex")
+    return {
+        "host": host,
+        "port": port,
+        "mcp_port": os.environ.get("DEX_MCP_PORT", "18080"),
+        "issuer": issuer,
+        "discovery_url": f"{issuer}/.well-known/openid-configuration",
+        "client_id": "mcp-redfish-e2e",
+        "client_secret": "e2e-oidc-client-secret",
+    }
+
+
+@pytest.fixture(scope="session")
+def dex_server(dex_config: dict[str, str]) -> dict[str, str]:
+    """Fail clearly when Dex is not running; make e2e starts it."""
+    import httpx
+
+    from test.common.oidc_simulator import ssl_context_for_cert
+
+    cert = Path(__file__).parent / "certs" / "server.crt"
+    try:
+        response = httpx.get(
+            dex_config["discovery_url"],
+            verify=ssl_context_for_cert(str(cert)),
+            trust_env=False,
+            timeout=5.0,
+        )
+        response.raise_for_status()
+    except Exception as exc:
+        pytest.fail(
+            f"Dex is not running at {dex_config['discovery_url']}. "
+            f"Start it with: make e2e-dex-start\n{exc}"
+        )
+    body = response.json()
+    for field in (
+        "authorization_endpoint",
+        "token_endpoint",
+        "jwks_uri",
+        "introspection_endpoint",
+    ):
+        if not body.get(field):
+            pytest.fail(f"Dex discovery did not include {field}")
+    config = dict(dex_config)
+    config["authorization_endpoint"] = str(body["authorization_endpoint"])
+    config["token_endpoint"] = str(body["token_endpoint"])
+    config["jwks_uri"] = str(body["jwks_uri"])
+    config["introspection_endpoint"] = str(body["introspection_endpoint"])
+    return config
+
+
+@pytest.fixture(scope="session")
 def mcp_client(mcp_server_env: dict[str, str]):
     """Provide an MCP test client instance for the test session."""
     from e2e.framework import MCPTestClient
@@ -97,6 +152,9 @@ def pytest_configure(config):
         "markers", "connectivity: Tests that verify actual emulator connectivity"
     )
     config.addinivalue_line("markers", "slow: Slow-running tests that may take longer")
+    config.addinivalue_line(
+        "markers", "idp: Tests that require the local Dex identity provider"
+    )
 
 
 def pytest_collection_modifyitems(config, items):

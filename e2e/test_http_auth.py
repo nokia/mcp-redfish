@@ -3,10 +3,11 @@
 # Licensed under the BSD 3-Clause License.
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""HTTP MCP e2e tests: unauthenticated lab mode and local JWT Bearer.
+"""HTTP MCP e2e tests: unauthenticated lab mode, local JWT Bearer, and introspection.
 
-Cloud identity providers are out of automated e2e. See docs/MCP_AUTH.md
-and docs/MCP_AUTH_MANUAL_IDP.md.
+Cloud identity providers are out of automated e2e. OAuth/OIDC Proxy and Remote
+OAuth Dex coverage is in e2e/test_dex_auth.py. See docs/MCP_AUTH.md and
+docs/MCP_AUTH_MANUAL_IDP.md.
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import os
 import socket
 import ssl
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -86,7 +88,7 @@ class _HttpMcpProcess:
         merged["FASTMCP_PORT"] = str(port)
         merged["FASTMCP_SHOW_SERVER_BANNER"] = "false"
         self._proc = subprocess.Popen(
-            ["uv", "run", "python", "-m", "src.main"],
+            [sys.executable, "-m", "src.main"],
             cwd=_project_root(),
             env=merged,
             stdout=subprocess.DEVNULL,
@@ -457,3 +459,31 @@ def test_non_loopback_host_origin_guard_precedes_authentication(
         assert reaches_auth.status_code == 401
     finally:
         server.close()
+
+
+_SIGNING_KEY = "abcdefghijklmnopqrstuvwxyz012345"
+
+
+def _emulator_in_servers(servers: list[str], emulator_config: dict[str, str]) -> bool:
+    return emulator_config["host"] in servers or any(
+        emulator_config["host"] in str(item) for item in servers
+    )
+
+
+def _list_servers(url: str, token: str | None) -> list[str]:
+    async def _call() -> list[str]:
+        auth = BearerAuth(token) if token else None
+        async with Client(url, auth=auth) as client:
+            result = await client.call_tool("list_servers")
+            data = result.data
+            if data is None and result.content:
+                data = json.loads(result.content[0].text)
+            return list(data)
+
+    return asyncio.run(_call())
+
+
+def _proxy_home(tmp_path: Path) -> dict[str, str]:
+    home = tmp_path / "fastmcp-home"
+    home.mkdir()
+    return {"HOME": str(home), "XDG_DATA_HOME": str(home)}

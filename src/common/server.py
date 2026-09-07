@@ -10,9 +10,9 @@ Initializes MCP server for Redfish integration.
 import logging
 
 from fastmcp import FastMCP
+from fastmcp.server.auth import AuthProvider
 
 from . import config as _config  # noqa: F401 - load .env and REDFISH config first
-from .auth import build_auth_provider
 from .validation import (
     AuthConfigurationError,
     MCPAuthConfig,
@@ -22,16 +22,22 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 
+
+def _build_http_auth_provider() -> AuthProvider | None:
+    """Build the HTTP auth provider; stdio skips auth imports entirely."""
+    if not is_http_transport(_config.MCP_CONFIG.transport):
+        return None
+    from .auth import build_auth_provider
+
+    auth_config = _config.MCP_CONFIG.auth or MCPAuthConfig()
+    return build_auth_provider(auth_config)
+
+
 # Initialize FastMCP server with error handling.
 # Auth provider is built from MCP_AUTH_* after validation so FASTMCP_SERVER_AUTH
 # auto-wiring cannot slip through.
 try:
-    _auth_config = _config.MCP_CONFIG.auth or MCPAuthConfig()
-    _auth_provider = (
-        build_auth_provider(_auth_config)
-        if is_http_transport(_config.MCP_CONFIG.transport)
-        else None
-    )
+    _auth_provider = _build_http_auth_provider()
     mcp = FastMCP("Redfish MCP Server", auth=_auth_provider)
     logger.info("MCP server initialized successfully.")
 except AuthConfigurationError as error:

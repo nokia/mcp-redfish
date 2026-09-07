@@ -10,7 +10,7 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, patch
 
-import httpx
+import httpx2 as httpx
 import pytest
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.ssrf import SSRFError, ValidatedURL

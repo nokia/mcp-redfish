@@ -69,7 +69,7 @@ def dex_config() -> dict[str, str]:
 @pytest.fixture(scope="session")
 def dex_server(dex_config: dict[str, str]) -> dict[str, str]:
     """Fail clearly when Dex is not running; make e2e starts it."""
-    import httpx
+    import httpx2 as httpx
 
     from test.common.oidc_simulator import ssl_context_for_cert
 

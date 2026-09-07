@@ -23,7 +23,7 @@ from types import TracebackType
 from typing import Any, Self
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
-import httpx
+import httpx2 as httpx
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from fastmcp.server.auth.providers.jwt import RSAKeyPair

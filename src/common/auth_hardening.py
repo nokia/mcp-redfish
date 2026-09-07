@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Literal
 
-import httpx
+import httpx2 as httpx
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.auth import TokenVerifier
 from fastmcp.server.auth.ssrf import format_ip_for_url, validate_url

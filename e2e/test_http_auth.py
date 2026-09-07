@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
-import httpx
+import httpx2 as httpx
 import pytest
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth

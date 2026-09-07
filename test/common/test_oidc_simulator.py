@@ -12,7 +12,7 @@ import socket
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import httpx
+import httpx2 as httpx
 from fastmcp.server.auth.providers.jwt import RSAKeyPair
 
 from test.common.oidc_simulator import (

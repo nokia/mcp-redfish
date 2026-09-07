@@ -18,7 +18,7 @@ license = {file = "LICENSE"}
 requires-python = ">=3.13"
 keywords = ["mcp", "redfish", "server", "api", "infrastructure", "management"]
 dependencies = [
-    "fastmcp>=3.4.7,<4",
+    "fastmcp>=4.0.3,<5",
     "httpx2>=2.12.0,<3",
     "redfish>=3.3.0,<4",
     "certifi>=2026.0.0",

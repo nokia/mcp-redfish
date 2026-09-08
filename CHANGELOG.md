@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.5.0] - 2026-09-08
+
 ### Breaking change
 
 HTTP MCP transports (`sse`, `streamable-http`) now require authentication. Set `MCP_AUTH_MODE` (and the matching `MCP_AUTH_*` variables), or set `MCP_HTTP_AUTH=false` to keep unauthenticated HTTP. stdio is unchanged. See README and the release notes.
@@ -77,12 +79,3 @@ That last case also let `MCP_TRANSPORT=http` (a transport name FastMCP accepts) 
   redirect hosts (`*` / `https://*`). Startup logs name OIDC discovery as the
   verification source and the public origin without query or userinfo.
   Provider construction errors include `error_type` without URLs or secrets.
-
-### GitHub Release notes (draft)
-
-Title the section **Breaking change**. Include:
-
-- HTTP transports now require authentication; stdio is unchanged.
-- Old `make run-sse` / `make run-streamable-http` / `MCP_TRANSPORT=sse` without new env will not start.
-- Migration: configure `MCP_AUTH_MODE` or set `MCP_HTTP_AUTH=false`.
-- See README and [docs/MCP_AUTH.md](docs/MCP_AUTH.md).

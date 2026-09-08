@@ -27,7 +27,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
-import httpx2 as httpx
+import httpx2
 import pytest
 from fastmcp import Client
 from fastmcp.client.auth import BearerAuth
@@ -434,7 +434,7 @@ def test_non_loopback_host_origin_guard_precedes_authentication(
                 "clientInfo": {"name": "host-origin-e2e", "version": "1"},
             },
         }
-        with httpx.Client(trust_env=False) as client:
+        with httpx2.Client(trust_env=False) as client:
             wrong_host = client.post(
                 f"http://127.0.0.1:{port}/mcp",
                 headers={"Host": "evil.example"},

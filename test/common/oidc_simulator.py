@@ -23,7 +23,7 @@ from types import TracebackType
 from typing import Any, Self
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
 
-import httpx2 as httpx
+import httpx2
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from fastmcp.server.auth.providers.jwt import RSAKeyPair
@@ -106,7 +106,7 @@ class HttpsOidcSimulator:
         last_error: Exception | None = None
         while time.time() < deadline:
             try:
-                response = httpx.get(
+                response = httpx2.get(
                     self.discovery_url(),
                     verify=ssl_context_for_cert(self.certfile),
                     trust_env=False,
@@ -243,7 +243,7 @@ def complete_dex_login(
 ) -> str:
     """Finish Dex mock-connector authorize flow; return the upstream access token."""
     state = secrets.token_urlsafe(16)
-    with httpx.Client(
+    with httpx2.Client(
         follow_redirects=False,
         trust_env=False,
         verify=ssl_context_for_cert(ca_file),
@@ -306,7 +306,7 @@ def complete_mcp_oauth_login(
     }
     if scope:
         registration_body["scope"] = scope
-    with httpx.Client(
+    with httpx2.Client(
         follow_redirects=False,
         trust_env=False,
         verify=ssl_context_for_cert(ca_file),
@@ -360,7 +360,7 @@ def complete_mcp_oauth_login(
 
 
 def _follow_until_redirect(
-    client: httpx.Client,
+    client: httpx2.Client,
     url: str,
     *,
     params: dict[str, str],

@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import httpx2 as httpx
+import httpx2
 import pytest
 
 from e2e.test_http_auth import (
@@ -176,7 +176,7 @@ def test_oidc_proxy_dex_metadata_is_public_tools_need_token(
     try:
         server.wait_ready()
         origin = f"http://127.0.0.1:{mcp_port}"
-        with httpx.Client(trust_env=False) as client:
+        with httpx2.Client(trust_env=False) as client:
             metadata = client.get(f"{origin}/.well-known/oauth-authorization-server")
             protected = client.get(f"{origin}/.well-known/oauth-protected-resource/mcp")
         assert metadata.status_code == 200
@@ -387,7 +387,7 @@ def test_remote_oauth_dex_metadata_and_bearer_lists_servers(
         server.wait_ready()
         origin = f"http://127.0.0.1:{mcp_port}"
         url = f"{origin}/mcp"
-        with httpx.Client(trust_env=False) as client:
+        with httpx2.Client(trust_env=False) as client:
             protected = client.get(f"{origin}/.well-known/oauth-protected-resource/mcp")
         assert protected.status_code == 200
         assert "authorization_servers" in protected.json()

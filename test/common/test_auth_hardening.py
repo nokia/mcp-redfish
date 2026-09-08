@@ -10,7 +10,7 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, patch
 
-import httpx2 as httpx
+import httpx2
 import pytest
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.ssrf import SSRFError, ValidatedURL
@@ -134,7 +134,7 @@ def test_introspection_client_stops_when_ssrf_validation_blocks() -> None:
             AsyncMock(side_effect=SSRFError("blocked")),
         ),
         patch.object(client, "_post_target", AsyncMock()) as post,
-        pytest.raises(httpx.RequestError, match="egress validation failed"),
+        pytest.raises(httpx2.RequestError, match="egress validation failed"),
     ):
         asyncio.run(client.post("https://127.0.0.1/introspect"))
     post.assert_not_awaited()

@@ -12,7 +12,7 @@ import socket
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import httpx2 as httpx
+import httpx2
 from fastmcp.server.auth.providers.jwt import RSAKeyPair
 
 from test.common.oidc_simulator import (
@@ -44,7 +44,7 @@ def test_https_oidc_simulator_issues_jwt_after_code_redirect(tmp_path: Path) -> 
         keyfile=keyfile,
         keypair=keypair,
     ) as idp:
-        with httpx.Client(
+        with httpx2.Client(
             follow_redirects=False,
             trust_env=False,
             verify=ssl_context_for_cert(idp.certfile),

@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, Literal
 
-import httpx2 as httpx
+import httpx2
 from fastmcp.server.auth import AccessToken, AuthProvider
 from fastmcp.server.auth.auth import TokenVerifier
 from fastmcp.server.auth.ssrf import format_ip_for_url, validate_url
@@ -242,7 +242,7 @@ class HardenedTokenVerifier(TokenVerifier):
 
 
 class SsrfSafeIntrospectionClient:
-    """Minimal httpx-compatible client used by IntrospectionTokenVerifier."""
+    """Minimal httpx2-compatible client used by IntrospectionTokenVerifier."""
 
     def __init__(
         self,
@@ -260,7 +260,7 @@ class SsrfSafeIntrospectionClient:
         url: str,
         data: dict[str, str] | None = None,
         headers: dict[str, str] | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         if self.allow_private:
             logger.debug("Token introspection request uses explicit private-IdP trust.")
             return await self._post_target(url, data=data, headers=headers)
@@ -273,7 +273,7 @@ class SsrfSafeIntrospectionClient:
                 "Token introspection egress validation failed: error_type=%s",
                 type(error).__name__,
             )
-            raise httpx.RequestError(
+            raise httpx2.RequestError(
                 "Token introspection egress validation failed"
             ) from None
         if not validated.resolved_ips:
@@ -285,7 +285,7 @@ class SsrfSafeIntrospectionClient:
                 proxy=validated.proxy_url,
             )
 
-        last_error: httpx.RequestError | None = None
+        last_error: httpx2.RequestError | None = None
         logger.debug(
             "Token introspection destination validated: target_count=%d",
             len(validated.resolved_ips),
@@ -304,7 +304,7 @@ class SsrfSafeIntrospectionClient:
                     ),
                     sni_hostname=validated.hostname,
                 )
-            except httpx.RequestError as error:
+            except httpx2.RequestError as error:
                 logger.debug(
                     "Token introspection target failed: error_type=%s",
                     type(error).__name__,
@@ -313,7 +313,7 @@ class SsrfSafeIntrospectionClient:
 
         if last_error is not None:
             raise last_error
-        raise httpx.RequestError("No validated introspection target was available")
+        raise httpx2.RequestError("No validated introspection target was available")
 
     async def _post_target(
         self,
@@ -324,7 +324,7 @@ class SsrfSafeIntrospectionClient:
         host_header: str | None = None,
         sni_hostname: str | None = None,
         proxy: str | None = None,
-    ) -> httpx.Response:
+    ) -> httpx2.Response:
         request_headers = {
             key: value
             for key, value in (headers or {}).items()
@@ -335,8 +335,8 @@ class SsrfSafeIntrospectionClient:
         extensions = (
             {"sni_hostname": sni_hostname} if sni_hostname is not None else None
         )
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(self.timeout_seconds),
+        async with httpx2.AsyncClient(
+            timeout=httpx2.Timeout(self.timeout_seconds),
             follow_redirects=False,
             verify=True,
             proxy=proxy,
@@ -356,7 +356,7 @@ class SsrfSafeIntrospectionClient:
                         logger.debug(
                             "Token introspection response rejected: reason=size_limit"
                         )
-                        raise httpx.HTTPError(
+                        raise httpx2.HTTPError(
                             "Introspection response exceeded the size limit"
                         )
                 response_content = (
@@ -366,7 +366,7 @@ class SsrfSafeIntrospectionClient:
                     "Token introspection endpoint response: status=%d",
                     response.status_code,
                 )
-                return httpx.Response(
+                return httpx2.Response(
                     response.status_code,
                     headers=response.headers,
                     content=response_content,

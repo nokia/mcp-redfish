@@ -15,7 +15,7 @@ import time
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import httpx2 as httpx
+import httpx2
 import pytest
 import uvicorn
 from cryptography.hazmat.primitives.asymmetric.rsa import RSAPublicKey
@@ -466,7 +466,7 @@ def test_phase2_remote_oauth_metadata_is_public_tools_are_not(
     )
     port = _free_port()
     start_http_server(port)
-    metadata = httpx.get(
+    metadata = httpx2.get(
         f"http://127.0.0.1:{port}/.well-known/oauth-protected-resource/mcp"
     )
     assert metadata.status_code == 200
@@ -522,11 +522,11 @@ def test_phase3_oauth_proxy_metadata_is_public_tools_are_not(
     )
     port = _free_port()
     start_http_server(port)
-    metadata = httpx.get(
+    metadata = httpx2.get(
         f"http://127.0.0.1:{port}/.well-known/oauth-authorization-server"
     )
     assert metadata.status_code == 200
-    protected = httpx.get(
+    protected = httpx2.get(
         f"http://127.0.0.1:{port}/.well-known/oauth-protected-resource/mcp"
     )
     assert protected.status_code == 200
@@ -571,11 +571,11 @@ def test_phase4_oidc_proxy_metadata_is_public_tools_are_not(
         )
     port = _free_port()
     start_http_server(port)
-    metadata = httpx.get(
+    metadata = httpx2.get(
         f"http://127.0.0.1:{port}/.well-known/oauth-authorization-server"
     )
     assert metadata.status_code == 200
-    protected = httpx.get(
+    protected = httpx2.get(
         f"http://127.0.0.1:{port}/.well-known/oauth-protected-resource/mcp"
     )
     assert protected.status_code == 200
@@ -702,7 +702,7 @@ def test_oidc_proxy_discovers_simulator_and_protects_tools(
         mcp.auth = provider
         start_http_server(mcp_port)
         origin = f"http://127.0.0.1:{mcp_port}"
-        metadata = httpx.get(f"{origin}/.well-known/oauth-authorization-server")
+        metadata = httpx2.get(f"{origin}/.well-known/oauth-authorization-server")
         assert metadata.status_code == 200
         with pytest.raises(Exception):  # noqa: B017
             _call_list_servers(f"{origin}/mcp", None)

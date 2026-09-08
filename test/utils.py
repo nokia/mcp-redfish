@@ -38,19 +38,25 @@ def extract_call_tool_result(result) -> Any:
     Extract data from CallToolResult or return direct result.
 
     This helper handles the different ways MCP tools can return data
-    depending on the test context.
+    depending on the test context and FastMCP version.
     """
-    if hasattr(result, "data"):
+    if hasattr(result, "structured_content") and result.structured_content is not None:
+        return result.structured_content
+    if hasattr(result, "data") and result.data is not None:
         return result.data
-    elif hasattr(result, "content") and result.content:
-        # Handle CallToolResult with TextContent
+    if hasattr(result, "content") and result.content:
         return json.loads(result.content[0].text)
-    elif isinstance(result, list) and result and hasattr(result[0], "text"):
-        # Handle direct TextContent list
+    if isinstance(result, list) and result and hasattr(result[0], "text"):
         return json.loads(result[0].text)
-    else:
-        # Handle direct result
-        return result
+    # FastMCP 4 omits content for empty list results.
+    if (
+        hasattr(result, "content")
+        and hasattr(result, "is_error")
+        and not result.is_error
+        and not result.content
+    ):
+        return []
+    return result
 
 
 def create_host_config(address: str, **kwargs) -> dict[str, str]:

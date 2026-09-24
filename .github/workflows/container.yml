@@ -8,17 +8,9 @@ on:
   push:
     tags:
       - 'v*'
-    # Push runs this file from the branch itself, before it is on main.
-    # workflow_dispatch cannot: GitHub registers that button only from the
-    # default branch. Remove this branch entry after the copy has been tested.
-    branches:
-      - ghcr-nokia-steward
   pull_request:
     branches:
       - main
-  # Copies tags already published at ghcr.io/nokia/mcp-redfish into this
-  # repository's package. A repo transfer does not move GHCR packages.
-  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -31,7 +23,6 @@ env:
 
 jobs:
   build-and-push:
-    if: github.event_name != 'workflow_dispatch' && github.ref != 'refs/heads/ghcr-nokia-steward'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -164,40 +155,3 @@ jobs:
           echo "${LEGACY_TOKEN}" | docker login "${REGISTRY}" \
             --username "${LEGACY_USERNAME}" --password-stdin
           cosign sign --yes "${REGISTRY}/${LEGACY_IMAGE_NAME}@${digest}"
-
-  copy-existing-package:
-    if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/ghcr-nokia-steward'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-
-      - name: Install skopeo
-        run: sudo apt-get update && sudo apt-get install -y skopeo
-
-      - name: Create legacy registry token
-        id: legacy-token
-        uses: actions/create-github-app-token@v3.2.0
-        with:
-          app-id: ${{ secrets.GHCR_LEGACY_APP_ID }}
-          private-key: ${{ secrets.GHCR_LEGACY_APP_PRIVATE_KE }}
-          owner: nokia
-          permission-packages: write
-
-      - name: Copy ghcr.io/nokia/mcp-redfish into this repository
-        env:
-          SRC_IMAGE: ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
-          DST_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          SRC_USERNAME: ${{ env.LEGACY_REGISTRY_USERNAME }}
-          SRC_TOKEN: ${{ steps.legacy-token.outputs.token }}
-          DST_USERNAME: ${{ github.actor }}
-          DST_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SKIP_EXISTING: "1"
-        run: |
-          ./scripts/mirror_ghcr.sh "${SRC_IMAGE}" "${DST_IMAGE}"
-          echo "Package tags were copied to ${DST_IMAGE}."
-          echo "If the package is private, open it on GitHub and change visibility to match ghcr.io/nokia/mcp-redfish."

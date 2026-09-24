@@ -1148,7 +1148,7 @@ wheels = [
 
 [[package]]
 name = "mcp-redfish"
-version = "0.5.0"
+version = "0.5.3"
 source = { editable = "." }
 dependencies = [
     { name = "certifi" },

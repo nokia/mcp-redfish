@@ -15,11 +15,6 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  # Existing users pull :latest from this path. Version tags are published
-  # only to IMAGE_NAME. GITHUB_TOKEN cannot push outside this repository's
-  # owner, so :latest is mirrored with the nokia GitHub App.
-  LEGACY_IMAGE_NAME: nokia/mcp-redfish
-  LEGACY_REGISTRY_USERNAME: x-access-token
 
 jobs:
   build-and-push:
@@ -80,78 +75,3 @@ jobs:
         run: |
           # Sign once by digest; all pushed tags resolve to this manifest.
           cosign sign --yes "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
-
-      - name: Install skopeo
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        run: sudo apt-get update && sudo apt-get install -y skopeo
-
-      - name: Require legacy GitHub App credentials
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          APP_ID: ${{ secrets.GHCR_LEGACY_APP_ID }}
-          APP_PRIVATE_KEY: ${{ secrets.GHCR_LEGACY_APP_PRIVATE_KE }}
-        run: |
-          if [ -z "${APP_ID}" ] || [ -z "${APP_PRIVATE_KEY}" ]; then
-            echo "::error::Set GHCR_LEGACY_APP_ID and GHCR_LEGACY_APP_PRIVATE_KE so releases also publish ghcr.io/${{ env.LEGACY_IMAGE_NAME }}."
-            exit 1
-          fi
-
-      - name: Create legacy registry token
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        id: legacy-token
-        uses: actions/create-github-app-token@v3.2.0
-        with:
-          app-id: ${{ secrets.GHCR_LEGACY_APP_ID }}
-          private-key: ${{ secrets.GHCR_LEGACY_APP_PRIVATE_KE }}
-          owner: nokia
-          permission-packages: write
-
-      - name: Mirror latest tag to ghcr.io/nokia/mcp-redfish
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          SRC_IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          DST_IMAGE: ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
-          SRC_USERNAME: ${{ github.actor }}
-          SRC_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DST_USERNAME: ${{ env.LEGACY_REGISTRY_USERNAME }}
-          DST_TOKEN: ${{ steps.legacy-token.outputs.token }}
-          TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          publish_latest=0
-          while IFS= read -r ref; do
-            if [ "${ref##*:}" = "latest" ]; then
-              publish_latest=1
-            fi
-          done <<< "${TAGS}"
-          if [ "${publish_latest}" -ne 1 ]; then
-            echo "No latest tag on this release. Version tags stay on ${SRC_IMAGE}."
-            exit 0
-          fi
-          TAGS=latest ./scripts/mirror_ghcr.sh "${SRC_IMAGE}" "${DST_IMAGE}"
-
-      - name: Sign legacy container image with Cosign
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-        env:
-          COSIGN_EXPERIMENTAL: 1
-          LEGACY_USERNAME: ${{ env.LEGACY_REGISTRY_USERNAME }}
-          LEGACY_TOKEN: ${{ steps.legacy-token.outputs.token }}
-          TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          publish_latest=0
-          while IFS= read -r ref; do
-            if [ "${ref##*:}" = "latest" ]; then
-              publish_latest=1
-            fi
-          done <<< "${TAGS}"
-          if [ "${publish_latest}" -ne 1 ]; then
-            echo "No latest tag on this release. Skipping the legacy signature."
-            exit 0
-          fi
-          digest="$(
-            skopeo inspect --format '{{.Digest}}' \
-              --creds "${LEGACY_USERNAME}:${LEGACY_TOKEN}" \
-              "docker://${REGISTRY}/${LEGACY_IMAGE_NAME}:latest"
-          )"
-          echo "${LEGACY_TOKEN}" | docker login "${REGISTRY}" \
-            --username "${LEGACY_USERNAME}" --password-stdin
-          cosign sign --yes "${REGISTRY}/${LEGACY_IMAGE_NAME}@${digest}"

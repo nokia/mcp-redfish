@@ -2,8 +2,6 @@
 
 > [!WARNING]
 > This repository has moved from [nokia/mcp-redfish](https://github.com/nokia/mcp-redfish) to [nokia-steward/mcp-redfish](https://github.com/nokia-steward/mcp-redfish). New releases and versioned container images are published only as `ghcr.io/nokia-steward/mcp-redfish`.
->
-> **Deprecation:** `ghcr.io/nokia/mcp-redfish:latest` is still refreshed from each stable release until **1 November 2026**. After that date the copy stops, and that tag stays on the last image published before the cutoff. Version tags already present under `ghcr.io/nokia/mcp-redfish` remain available and are not updated.
 
 ## Overview
 The Redfish MCP Server is a **natural language interface** designed for agentic applications to efficiently manage infrastructure that exposes [Redfish API](https://www.dmtf.org/standards/redfish) for this purpose. It integrates seamlessly with **MCP (Model Content Protocol) clients**, enabling AI-driven workflows to interact with structured and unstructured data of the infrastructure. Using this MCP Server, you can ask questions like:

@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 ## Unreleased
 
+## [0.5.3] - 2026-09-24
+
+### Deprecation
+
+This repository has moved from [nokia/mcp-redfish](https://github.com/nokia/mcp-redfish) to [nokia-steward/mcp-redfish](https://github.com/nokia-steward/mcp-redfish). New releases and versioned container images are published only as `ghcr.io/nokia-steward/mcp-redfish`.
+
+`ghcr.io/nokia/mcp-redfish:latest` is still refreshed from each stable release until **1 February 2027**. After that date the copy stops, and that tag stays on the last image published before the cutoff. Version tags already present under `ghcr.io/nokia/mcp-redfish` remain available and are not updated.
+
+### Changed
+
+- Release images are published to `ghcr.io/nokia-steward/mcp-redfish`. A stable release also copies `latest` to `ghcr.io/nokia/mcp-redfish`. Pre-releases do not move `latest`.
+- Dependencies are updated within the existing ranges. Direct updates include `fastmcp` 4.0.8 and `httpx2` 2.13.1. MCP Inspector moves to 2.8.0. Transitive updates include `cyclopts` 5.0.0 and `filelock` 4.0.3.
+
 ## [0.5.0] - 2026-09-08
 
 ### Breaking change

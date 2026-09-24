@@ -8,7 +8,7 @@ packages = ["src"]
 
 [project]
 name = "mcp-redfish"
-version = "0.5.0"
+version = "0.5.3"
 description = "MCP Server for Redfish API Integration - A natural language interface for managing Redfish-enabled infrastructure"
 authors = [{name = "Nokia", email = "opensource@nokia.com"}]
 maintainers = [{name = "Nokia", email = "opensource@nokia.com"}]
@@ -27,10 +27,10 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/nokia/mcp-redfish"
-Repository = "https://github.com/nokia/mcp-redfish"
-Documentation = "https://github.com/nokia/mcp-redfish#readme"
-"Bug Tracker" = "https://github.com/nokia/mcp-redfish/issues"
+Homepage = "https://github.com/nokia-steward/mcp-redfish"
+Repository = "https://github.com/nokia-steward/mcp-redfish"
+Documentation = "https://github.com/nokia-steward/mcp-redfish#readme"
+"Bug Tracker" = "https://github.com/nokia-steward/mcp-redfish/issues"
 
 [project.optional-dependencies]
 dev = [
